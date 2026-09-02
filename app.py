@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS agar kartu metrik proporsional dan teks tidak terpotong
+# CSS 
 st.markdown("""
     <style>
         [data-testid="stMetricValue"] {
@@ -22,10 +22,17 @@ st.markdown("""
             font-size: 0.82rem !important;
             white-space: normal;
         }
+        /* Hilangkan jarak kosong bawaan streamlit di bawah metric */
+        [data-testid="stMetric"] {
+            margin-bottom: 0px !important;
+            padding-bottom: 0px !important;
+        }
+        /* Keterangan langsung menempel rapat di bawah delta */
         .metric-subtext {
             font-size: 0.78rem;
             color: #94a3b8;
-            margin-top: 4px;
+            margin-top: -8px !important;
+            padding-bottom: 4px;
         }
     </style>
 """, unsafe_allow_html=True)

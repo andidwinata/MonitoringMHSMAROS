@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS 
+# CSS Kustom untuk Tampilan & Spasi Rapih
 st.markdown("""
     <style>
         [data-testid="stMetricValue"] {
@@ -22,22 +22,27 @@ st.markdown("""
             font-size: 0.82rem !important;
             white-space: normal;
         }
-        /* Hilangkan jarak kosong bawaan streamlit di bawah metric */
         [data-testid="stMetric"] {
             margin-bottom: 0px !important;
             padding-bottom: 0px !important;
         }
-        /* Keterangan langsung menempel rapat di bawah delta */
         .metric-subtext {
             font-size: 0.78rem;
             color: #94a3b8;
             margin-top: -8px !important;
             padding-bottom: 4px;
         }
+        .outlet-card {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 15px;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# 1. Target SKU per Channel (Berdasarkan 3 digit awal Channel)
+# Target SKU per Channel
 DEFAULT_TARGET_CHANNEL = {
     '111': 7,   # Kios / Retail Small
     '154': 7,   # Wet Retail
@@ -47,23 +52,62 @@ DEFAULT_TARGET_CHANNEL = {
     '110': 25   # Grosir Modern / Supermarket
 }
 
-# 2. Master 61 SKU Must Have SKU (MHS)
-DEFAULT_MHS_LIST = [
-    '410583', '411008', '370150', '370152', '370153', '370193', '370095', '410832', '410834', '410835',
-    '410871', '410820', '410821', '410822', '410823', '410824', '410825', '410826', '315486', '315580',
-    '410695', '410696', '410697', '410291', '410332', '410905', '410846', '410881', '410901', '410864',
-    '411014', '410737', '410868', '316857', '370118', '370141', '370143', '370144', '370146', '370176',
-    '370177', '370178', '410584', '410882', '410991', '410992', '410803', '410804', '410805', '410806',
-    '410807', '410808', '410809', '410810', '410884', '410885', '410886', '410887', '410888', '410889', '410890'
+# --- MASTER KATA KUNCI PEMETAAN BERDASARKAN DOKUMEN RESMI M245 ---
+KEYWORDS_GT_RETAIL_KIOS = [
+    'TORABIKA CAPPUCINO', 'CREAMY LATTE', 'TORA MOKA', 'TORAMOKA', 'TORA BUBUK', 'TURKISH',
+    'ENERGEN COKELAT', 'ENERGEN VANILLA', 'CHAMPION', 'DRINK BENG', 'TEH SUSU JASMINE',
+    'WOW SPAGETI CARBONARA', 'WOW SPAGETI GORENG', 'MIGELAS AYAM BAWANG', 'MIGELAS BASO', 'MIGELAS SOTO', 'MIGELAS MERCON', 'BURYAM',
+    'GENTLE GEN TWINPACK', 'KILAU NIPIS'
 ]
 
-# --- FUNGSI FORMAT PENOMORAN TABEL (MULAI DARI 1) ---
+KEYWORDS_GT_RETAIL_LARGE = KEYWORDS_GT_RETAIL_KIOS + [
+    'TORADUO', 'WOW BOLOGNESE', 'MIGELAS KARI'
+]
+
+KEYWORDS_GT_GROSIR = KEYWORDS_GT_RETAIL_LARGE + [
+    'TORASUSU', 'ENERGEN KACANG HIJAU', 'ENERGEN VANTOP', 'MIGELAS SOP BUNTUT', 'MIGELAS SOSIS BBQ', 'MIGELAS GORENG'
+]
+
+KEYWORDS_GMM = [
+    'TORABIKA', 'TORAMOKA', 'TORASUSU', 'TORADUO', 'TORACAFE', 'TURKISH',
+    'ENERGEN', 'CHAMPION', 'DRINK BENG', 'TEH SUSU JASMINE',
+    'WOW SPAGETI', 'MIGELAS', 'SUPER BUBUR', 'BURYAM',
+    'GENTLE GEN', 'KILAU NIPIS'
+]
+
+KEYWORDS_ST = [
+    'TORABIKA CAPPUCINO', 'CREAMY LATTE', 'TORAMOKA', 'TORABIKA BUBUK', 'TURKISH', 'TORACAFE',
+    'ENERGEN', 'CHAMPION', 'DRINK BENG', 'TEH SUSU JASMINE',
+    'WOW SPAGETI', 'MIGELAS', 'SUPER BUBUR', 'KILAU NIPIS'
+]
+
+def get_keywords_for_channel(s_force, ch_pref):
+    if '226' in str(s_force) or 'ST' in str(s_force).upper():
+        return KEYWORDS_ST, "Speciality Trade (KVS ST)"
+    elif str(ch_pref) == '110':
+        return KEYWORDS_GMM, "General Modern Trade (GMM)"
+    elif str(ch_pref) in ['114', '115']:
+        return KEYWORDS_GT_GROSIR, "Grosir / Semi Grosir GT"
+    elif str(ch_pref) == '113':
+        return KEYWORDS_GT_RETAIL_LARGE, "Retail Large GT"
+    else:
+        return KEYWORDS_GT_RETAIL_KIOS, "Retail Kios / Wet Retail GT"
+
+def cek_sku_valid_oleh_nama(nama_produk, s_force, ch_pref):
+    nama_upper = str(nama_produk).upper()
+    allowed_list, _ = get_keywords_for_channel(s_force, ch_pref)
+    for kw in allowed_list:
+        if kw in nama_upper:
+            return True
+    return False
+
+# Fungsi Penomoran Mulai dari 1
 def beri_nomor_urut(df_target):
     df_res = df_target.copy().reset_index(drop=True)
     df_res.insert(0, 'No', range(1, len(df_res) + 1))
     return df_res
 
-# --- FUNGSI PARSER LBP TXT (MENGATASI TRAILING PIPE) ---
+# Parser LBP
 def parse_raw_lbp(uploaded_file):
     if uploaded_file.name.endswith(('.txt', '.csv')):
         raw_bytes = uploaded_file.read()
@@ -99,44 +143,30 @@ cb_standpro = st.sidebar.number_input(
 )
 
 uploaded_lbp = st.sidebar.file_uploader("📂 Upload File LBP (.txt / .csv / .xlsx)", type=['txt', 'csv', 'xlsx'])
-uploaded_mhs = st.sidebar.file_uploader("📋 Upload Master MHS Baru (Opsional)", type=['csv', 'xlsx'])
 
 # --- PEMROSESAN DATA & DASHBOARD ---
 if uploaded_lbp is not None:
     try:
-        with st.spinner("Memproses data LBP..."):
+        with st.spinner("Memproses data LBP & mencocokkan mapping SKU..."):
             df_raw = parse_raw_lbp(uploaded_lbp)
-
-            # Master MHS
-            if uploaded_mhs is not None:
-                df_ref = pd.read_excel(uploaded_mhs) if uploaded_mhs.name.endswith('.xlsx') else pd.read_csv(uploaded_mhs)
-                mhs_pcode_set = set(df_ref['Pcode'].astype(str).str.strip().unique())
-            else:
-                mhs_pcode_set = set(DEFAULT_MHS_LIST)
 
             # Standardisasi Tipe Data
             df_raw['Salesman'] = df_raw['Salesman'].astype(str).str.strip()
-            df_raw['Pcode_Str'] = df_raw['Pcode'].astype(str).str.strip()
+            df_raw['Nama Produk'] = df_raw['Nama Produk'].astype(str).str.strip()
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
             df_raw['AMOUNT'] = pd.to_numeric(df_raw['AMOUNT'], errors='coerce').fillna(0)
+            if 'Salesforce' not in df_raw.columns: df_raw['Salesforce'] = '-'
+            df_raw['Salesforce'] = df_raw['Salesforce'].astype(str).str.strip()
 
-            # Proteksi Kolom Wilayah & Pasar
-            if 'Kabupaten' not in df_raw.columns:
-                df_raw['Kabupaten'] = '-'
-            else:
-                df_raw['Kabupaten'] = df_raw['Kabupaten'].fillna('-').astype(str).str.strip()
+            if 'Kabupaten' not in df_raw.columns: df_raw['Kabupaten'] = '-'
+            else: df_raw['Kabupaten'] = df_raw['Kabupaten'].fillna('-').astype(str).str.strip()
 
-            if 'Kecamatan' not in df_raw.columns:
-                df_raw['Kecamatan'] = '-'
-            else:
-                df_raw['Kecamatan'] = df_raw['Kecamatan'].fillna('-').astype(str).str.strip()
+            if 'Kecamatan' not in df_raw.columns: df_raw['Kecamatan'] = '-'
+            else: df_raw['Kecamatan'] = df_raw['Kecamatan'].fillna('-').astype(str).str.strip()
 
-            if 'Kode Pasar' not in df_raw.columns:
-                df_raw['Kode Pasar'] = '-'
-            else:
-                df_raw['Kode Pasar'] = df_raw['Kode Pasar'].fillna('-').astype(str).str.strip()
+            if 'Kode Pasar' not in df_raw.columns: df_raw['Kode Pasar'] = '-'
+            else: df_raw['Kode Pasar'] = df_raw['Kode Pasar'].fillna('-').astype(str).str.strip()
             
-            # Hitung Faktur vs Retur
             is_retur = df_raw['TRANSTYPE'].astype(str).str.strip().str.upper() == 'R'
             df_raw['NET_QTY'] = df_raw['QTYPCS'].where(~is_retur, -df_raw['QTYPCS'])
             df_raw['NET_AMOUNT'] = df_raw['AMOUNT'].where(~is_retur, -df_raw['AMOUNT'])
@@ -145,7 +175,6 @@ if uploaded_lbp is not None:
 
             all_salesmen = sorted(df_raw['Salesman'].dropna().unique().tolist())
 
-        # --- FILTER TIM SALESMAN (MULTI-SELECT UNTUK SS) ---
         with st.sidebar:
             st.markdown("---")
             st.markdown("### 👥 **Pilih Salesman (Tim SS)**")
@@ -160,28 +189,36 @@ if uploaded_lbp is not None:
             st.warning("Silakan pilih minimal 1 salesman pada menu di sebelah kiri.")
             st.stop()
 
-        # Filter data sesuai salesman terpilih
         df = df_raw[df_raw['Salesman'].isin(selected_salesmen)].copy()
 
-        # Agregasi SKU MHS
-        df_mhs_tx = df[df['Pcode_Str'].isin(mhs_pcode_set)].copy()
-        agg_sku = df_mhs_tx.groupby(['No Outlet', 'Pcode_Str'])['NET_QTY'].sum().reset_index()
-        valid_mhs = agg_sku[agg_sku['NET_QTY'] > 0]
-        sku_per_toko = valid_mhs.groupby('No Outlet').size().reset_index(name='Realisasi SKU Sold')
-
-        # Database Toko
-        base_cols = ['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Kabupaten', 'Kecamatan', 'Kode Pasar']
+        base_cols = ['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Salesforce', 'Kabupaten', 'Kecamatan', 'Kode Pasar']
         cols_exist = [c for c in base_cols if c in df.columns]
-        outlet_master = df[cols_exist].drop_duplicates(subset=['No Outlet'])
-        calc_toko = pd.merge(outlet_master, sku_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
-        calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
+        outlet_master = df[cols_exist].drop_duplicates(subset=['No Outlet']).copy()
+        outlet_master['Channel_Prefix'] = outlet_master['Channel'].astype(str).str.slice(0, 3)
 
-        calc_toko['Channel_Prefix'] = calc_toko['Channel'].astype(str).str.slice(0, 3)
+        outlet_prod_agg = df.groupby(['No Outlet', 'Nama Produk', 'Salesforce'])['NET_QTY'].sum().reset_index()
+        outlet_prod_positive = outlet_prod_agg[outlet_prod_agg['NET_QTY'] > 0]
+
+        def hitung_mhs_lolos_toko(row):
+            no_outlet = row['No Outlet']
+            s_force = row['Salesforce']
+            ch_pref = row['Channel_Prefix']
+            
+            prod_toko = outlet_prod_positive[outlet_prod_positive['No Outlet'] == no_outlet]
+            matched_prods = set()
+            for _, p_row in prod_toko.iterrows():
+                p_name = p_row['Nama Produk']
+                if cek_sku_valid_oleh_nama(p_name, s_force, ch_pref):
+                    matched_prods.add(p_name)
+            return len(matched_prods)
+
+        outlet_master['Realisasi SKU Sold'] = outlet_master.apply(hitung_mhs_lolos_toko, axis=1)
+        calc_toko = outlet_master.copy()
+
         calc_toko['Target SKU'] = calc_toko['Channel_Prefix'].map(DEFAULT_TARGET_CHANNEL).fillna(7).astype(int)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
 
-        # KPI Makro
         total_ec = len(calc_toko)
         total_lolos_mhs = calc_toko['Status Lolos'].sum()
         ach_cb_standpro = (total_lolos_mhs / cb_standpro) * 100
@@ -191,7 +228,6 @@ if uploaded_lbp is not None:
         total_retur = df['RETUR_AMOUNT'].sum()
         retur_rate = (total_retur / total_bruto * 100) if total_bruto > 0 else 0
 
-        # Tier Insentif
         if ach_cb_standpro >= 80: 
             tier_label = "Tier 4 (≥ 80%)"
             gauge_color = "#16a34a"
@@ -211,91 +247,67 @@ if uploaded_lbp is not None:
         target_tier1 = int(cb_standpro * 0.5)
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
-        # --- TAMPILAN DASHBOARD ---
-        st.title("📊 Monitoring by SS MAROS (SS / HOA MV42)")
+        # Header Utama
+        st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
-        # --- LOGIKA DELTA TERSIMPLIFIKASI (RAPI & ANTI-NABRAK) ---
         is_lolos_tier = ach_cb_standpro >= 50.0
 
         if total_retur > 0:
             delta_omset = f"-{retur_rate:.2f}% Retur"
-            delta_color_omset = "normal"  # Panah merah ke bawah
+            delta_color_omset = "normal"
         else:
             delta_omset = "+0.00% Retur"
             delta_color_omset = "normal"
 
         if is_lolos_tier:
-            delta_mhs = f"+{ach_cb_standpro:.2f}% (Lolos Target)"
-            delta_color_mhs = "normal"   # Panah hijau ke atas
+            delta_mhs = f"+{ach_cb_standpro:.2f}% (Target 50%)"
+            delta_color_mhs = "normal"
         else:
             delta_mhs = f"-{ach_cb_standpro:.2f}% (Target 50%)"
-            delta_color_mhs = "normal"   # Panah merah ke bawah
+            delta_color_mhs = "normal"
 
         if gap_toko_t1 == 0:
             delta_status = "+Tier 1 Tercapai"
-            delta_color_status = "normal" # Panah hijau ke atas
+            delta_color_status = "normal"
         else:
             delta_status = f"-Kurang {gap_toko_t1:,} Toko"
-            delta_color_status = "normal" # Panah merah ke bawah
+            delta_color_status = "normal"
 
-        # --- 4 KARTU METRIK EKSEKUTIF BERBINGKAI ---
+        # Kartu Metrik
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             with st.container(border=True):
-                st.metric(
-                    label="Omset Bersih (Net)",
-                    value=f"Rp {total_net_sales:,.0f}",
-                    delta=delta_omset,
-                    delta_color=delta_color_omset
-                )
-                st.markdown(f"<div class='metric-subtext'>Bruto: <b>Rp {total_bruto:,.0f}</b></div>", unsafe_allow_html=True)
-
+                st.metric("Omset Bersih (Net)", f"Rp {total_net_sales:,.0f}", delta=delta_omset, delta_color=delta_color_omset)
+                st.markdown(f"<div class='metric-subtext'>Bruto: Rp {total_bruto:,.0f}</div>", unsafe_allow_html=True)
         with c2:
             with st.container(border=True):
-                st.metric(
-                    label="Toko Transaksi (EC)",
-                    value=f"{total_ec:,} Toko",
-                    delta=f"+{df['Faktur'].nunique():,} Faktur",
-                    delta_color="normal"
-                )
+                st.metric("Toko Transaksi (EC)", f"{total_ec:,} Toko", delta=f"+{df['Faktur'].nunique():,} Faktur", delta_color="normal")
                 st.markdown(f"<div class='metric-subtext'>Total Faktur Terbit</div>", unsafe_allow_html=True)
-
         with c3:
             with st.container(border=True):
-                st.metric(
-                    label="Toko Lolos MHS",
-                    value=f"{total_lolos_mhs:,} Toko",
-                    delta=delta_mhs,
-                    delta_color=delta_color_mhs
-                )
-                st.markdown(f"<div class='metric-subtext'>Target Base: <b>{cb_standpro:,} Toko</b></div>", unsafe_allow_html=True)
-
+                st.metric("Toko Lolos MHS", f"{total_lolos_mhs:,} Toko", delta=delta_mhs, delta_color=delta_color_mhs)
+                st.markdown(f"<div class='metric-subtext'>Target Base: {cb_standpro:,} Toko</div>", unsafe_allow_html=True)
         with c4:
             with st.container(border=True):
-                st.metric(
-                    label="Status Insentif",
-                    value=tier_label,
-                    delta=delta_status,
-                    delta_color=delta_color_status
-                )
-                st.markdown(f"<div class='metric-subtext'>Target Min Tier 1: <b>{target_tier1:,} Toko</b></div>", unsafe_allow_html=True)
+                st.metric("Status Insentif", tier_label, delta=delta_status, delta_color=delta_color_status)
+                st.markdown(f"<div class='metric-subtext'>Target Min Tier 1: {target_tier1:,} Toko</div>", unsafe_allow_html=True)
 
         st.markdown("---")
 
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📈 Kinerja Salesman & Progress", 
-            "📍 Omset & Sebaran Wilayah", 
-            "📦 Kontribusi Subbrand & Divisi", 
-            "🏬 Analisis Tipe Toko (Channel)", 
-            "🎯 Action Plan Toko (Gap MHS)"
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📈 Kinerja Salesman", 
+            "📍 Omset & Wilayah", 
+            "📦 Subbrand & Divisi", 
+            "🏬 Tipe Toko (Channel)", 
+            "🎯 Action Plan Toko",
+            "📑 Master Mapping & List SKU"
         ])
 
-        # TAB 1: KINERJA SALESMAN & CHARTS
+        # TAB 1: KINERJA SALESMAN
         with tab1:
             st.subheader("Pencapaian Insentif & Kinerja Tim")
             cg, cb = st.columns([1, 2])
-            
             with cg:
                 fig_g = go.Figure(go.Indicator(
                     mode = "gauge+number",
@@ -316,37 +328,20 @@ if uploaded_lbp is not None:
                 ))
                 fig_g.update_layout(height=260, margin=dict(l=20, r=20, t=30, b=10))
                 st.plotly_chart(fig_g, use_container_width=True)
-
             with cb:
                 chart_df = calc_toko.groupby('Salesman').agg(
                     Covered=('No Outlet', 'count'),
                     Lolos=('Status Lolos', 'sum')
                 ).reset_index()
-                
                 fig_bar = go.Figure()
                 fig_bar.add_trace(go.Bar(name='Toko Tercover (EC)', x=chart_df['Salesman'], y=chart_df['Covered'], marker_color='#94a3b8'))
                 fig_bar.add_trace(go.Bar(name='Toko Lolos MHS', x=chart_df['Salesman'], y=chart_df['Lolos'], marker_color='#0284c7'))
-                fig_bar.update_layout(
-                    title="Perbandingan Toko Tercover vs Toko Lolos MHS",
-                    height=260,
-                    margin=dict(l=10, r=10, t=35, b=10),
-                    barmode='group',
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
+                fig_bar.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10), barmode='group', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig_bar, use_container_width=True)
 
             st.markdown("#### Tabel Rincian Kinerja Salesman")
-            sales_val = df.groupby(['Kode Sales', 'Salesman']).agg(
-                Net_Sales=('NET_AMOUNT', 'sum'),
-                Total_Faktur=('Faktur', 'nunique')
-            ).reset_index()
-
-            sales_agg = calc_toko.groupby(['Kode Sales', 'Salesman']).agg(
-                EC=('No Outlet', 'count'),
-                Toko_Lolos_MHS=('Status Lolos', 'sum'),
-                Avg_SKU=('Realisasi SKU Sold', 'mean')
-            ).reset_index()
-
+            sales_val = df.groupby(['Kode Sales', 'Salesman']).agg(Net_Sales=('NET_AMOUNT', 'sum'), Total_Faktur=('Faktur', 'nunique')).reset_index()
+            sales_agg = calc_toko.groupby(['Kode Sales', 'Salesman']).agg(EC=('No Outlet', 'count'), Toko_Lolos_MHS=('Status Lolos', 'sum'), Avg_SKU=('Realisasi SKU Sold', 'mean')).reset_index()
             sales_perf = pd.merge(sales_val, sales_agg, on=['Kode Sales', 'Salesman'])
             sales_perf['% Strike Rate MHS'] = ((sales_perf['Toko_Lolos_MHS'] / sales_perf['EC']) * 100).round(1)
             sales_perf['Drop Size / Faktur'] = (sales_perf['Net_Sales'] / sales_perf['Total_Faktur']).round(0)
@@ -357,110 +352,59 @@ if uploaded_lbp is not None:
             display_sales['Drop Size / Faktur'] = display_sales['Drop Size / Faktur'].apply(lambda x: f"Rp {x:,.0f}")
             display_sales['% Strike Rate MHS'] = display_sales['% Strike Rate MHS'].apply(lambda x: f"{x:.1f}%")
 
-            # Penomoran mulai dari 1
             tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / Faktur']])
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
 
-        # TAB 2: OMSET & SEBARAN WILAYAH
+        # TAB 2: OMSET & WILAYAH
         with tab2:
             st.subheader("Analisis Penjualan Berdasarkan Wilayah")
             col_kab, col_kec = st.columns(2)
-
             with col_kab:
                 st.markdown("#### Penjualan per Kabupaten")
                 kab_val = df.groupby('Kabupaten')['NET_AMOUNT'].sum().reset_index()
-                kab_out = calc_toko.groupby('Kabupaten').agg(
-                    Total_Toko=('No Outlet', 'count'),
-                    Toko_Lolos=('Status Lolos', 'sum')
-                ).reset_index()
+                kab_out = calc_toko.groupby('Kabupaten').agg(Total_Toko=('No Outlet', 'count'), Toko_Lolos=('Status Lolos', 'sum')).reset_index()
                 kab_merge = pd.merge(kab_val, kab_out, on='Kabupaten').sort_values(by='NET_AMOUNT', ascending=False)
                 kab_merge['Kontribusi (%)'] = ((kab_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
                 kab_merge['Strike Rate (%)'] = ((kab_merge['Toko_Lolos'] / kab_merge['Total_Toko']) * 100).round(1)
                 kab_merge['Omset (Rp)'] = kab_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                 
-                # Penomoran mulai dari 1
                 tbl_kab = beri_nomor_urut(kab_merge[['Kabupaten', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
                 st.dataframe(tbl_kab, use_container_width=True, hide_index=True)
 
-                fig_kab = px.pie(
-                    kab_merge, 
-                    names='Kabupaten', 
-                    values='NET_AMOUNT', 
-                    hole=0.4,
-                    color_discrete_sequence=px.colors.qualitative.Safe,
-                    title="Porsi Omset per Kabupaten"
-                )
+                fig_kab = px.pie(kab_merge, names='Kabupaten', values='NET_AMOUNT', hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe, title="Porsi Omset per Kabupaten")
                 fig_kab.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
                 st.plotly_chart(fig_kab, use_container_width=True)
 
             with col_kec:
                 st.markdown("#### Top 10 Kecamatan berdasarkan Omset")
                 kec_val = df.groupby('Kecamatan')['NET_AMOUNT'].sum().reset_index()
-                kec_out = calc_toko.groupby('Kecamatan').agg(
-                    Total_Toko=('No Outlet', 'count'),
-                    Toko_Lolos=('Status Lolos', 'sum')
-                ).reset_index()
+                kec_out = calc_toko.groupby('Kecamatan').agg(Total_Toko=('No Outlet', 'count'), Toko_Lolos=('Status Lolos', 'sum')).reset_index()
                 kec_merge = pd.merge(kec_val, kec_out, on='Kecamatan').sort_values(by='NET_AMOUNT', ascending=False).head(10)
                 kec_merge['Kontribusi (%)'] = ((kec_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
                 kec_merge['Strike Rate (%)'] = ((kec_merge['Toko_Lolos'] / kec_merge['Total_Toko']) * 100).round(1)
                 kec_merge['Omset (Rp)'] = kec_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
 
-                # Penomoran mulai dari 1
                 tbl_kec = beri_nomor_urut(kec_merge[['Kecamatan', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
                 st.dataframe(tbl_kec, use_container_width=True, hide_index=True)
 
-                fig_kec = px.bar(
-                    kec_merge.sort_values(by='NET_AMOUNT', ascending=True),
-                    x='NET_AMOUNT',
-                    y='Kecamatan',
-                    orientation='h',
-                    labels={'NET_AMOUNT': 'Omset Bersih (Rp)'},
-                    color_discrete_sequence=['#0284c7'],
-                    title="Grafik Omset Top 10 Kecamatan"
-                )
+                fig_kec = px.bar(kec_merge.sort_values(by='NET_AMOUNT', ascending=True), x='NET_AMOUNT', y='Kecamatan', orientation='h', labels={'NET_AMOUNT': 'Omset Bersih (Rp)'}, color_discrete_sequence=['#0284c7'], title="Grafik Omset Top 10 Kecamatan")
                 fig_kec.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
                 st.plotly_chart(fig_kec, use_container_width=True)
-
-            if 'Kode Pasar' in df.columns and (df['Kode Pasar'] != '-').any():
-                st.markdown("---")
-                st.markdown("#### Sebaran Penjualan per Pasar / Rayon")
-                pasar_val = df.groupby('Kode Pasar')['NET_AMOUNT'].sum().reset_index()
-                pasar_out = calc_toko.groupby('Kode Pasar').agg(
-                    Toko_Aktif=('No Outlet', 'count'),
-                    Toko_Lolos=('Status Lolos', 'sum')
-                ).reset_index()
-                pasar_merge = pd.merge(pasar_val, pasar_out, on='Kode Pasar').sort_values(by='NET_AMOUNT', ascending=False).head(15)
-                pasar_merge['Omset Bersih (Rp)'] = pasar_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
-                pasar_merge['Strike Rate (%)'] = ((pasar_merge['Toko_Lolos'] / pasar_merge['Toko_Aktif']) * 100).round(1)
-                
-                # Penomoran mulai dari 1
-                tbl_pasar = beri_nomor_urut(pasar_merge[['Kode Pasar', 'Omset Bersih (Rp)', 'Toko_Aktif', 'Toko_Lolos', 'Strike Rate (%)']])
-                st.dataframe(tbl_pasar, use_container_width=True, hide_index=True)
 
         # TAB 3: SUBBRAND & DIVISI
         with tab3:
             st.subheader("Kontribusi Produk & Divisi")
             col_sb1, col_sb2 = st.columns(2)
-            
             with col_sb1:
                 st.markdown("#### Top 10 Subbrand berdasarkan Omset")
                 if 'SUBBRANDNAME' in df.columns:
                     top_sb = df.groupby('SUBBRANDNAME')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False).head(10)
                     top_sb['Omset (Rp)'] = top_sb['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                     top_sb['Kontribusi (%)'] = ((top_sb['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    
-                    # Penomoran mulai dari 1
                     tbl_sb = beri_nomor_urut(top_sb[['SUBBRANDNAME', 'Omset (Rp)', 'Kontribusi (%)']])
                     st.dataframe(tbl_sb, use_container_width=True, hide_index=True)
 
-                    fig_pie = px.pie(
-                        top_sb.head(6), 
-                        names='SUBBRANDNAME', 
-                        values='NET_AMOUNT', 
-                        hole=0.45,
-                        color_discrete_sequence=px.colors.qualitative.Prism,
-                        title="Porsi 6 Brand Terbesar"
-                    )
+                    fig_pie = px.pie(top_sb.head(6), names='SUBBRANDNAME', values='NET_AMOUNT', hole=0.45, color_discrete_sequence=px.colors.qualitative.Prism, title="Porsi 6 Brand Terbesar")
                     fig_pie.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10))
                     st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -471,19 +415,10 @@ if uploaded_lbp is not None:
                     div_sales['Divisi'] = "Divisi " + div_sales['Divisi'].astype(str)
                     div_sales['Omset (Rp)'] = div_sales['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                     div_sales['Kontribusi (%)'] = ((div_sales['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    
-                    # Penomoran mulai dari 1
                     tbl_div = beri_nomor_urut(div_sales[['Divisi', 'Omset (Rp)', 'Kontribusi (%)']])
                     st.dataframe(tbl_div, use_container_width=True, hide_index=True)
 
-                    fig_div = px.bar(
-                        div_sales, 
-                        x='Divisi', 
-                        y='NET_AMOUNT', 
-                        color='Divisi',
-                        color_discrete_sequence=px.colors.qualitative.Safe,
-                        title="Omset per Divisi"
-                    )
+                    fig_div = px.bar(div_sales, x='Divisi', y='NET_AMOUNT', color='Divisi', color_discrete_sequence=px.colors.qualitative.Safe, title="Omset per Divisi")
                     fig_div.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10))
                     st.plotly_chart(fig_div, use_container_width=True)
 
@@ -491,60 +426,136 @@ if uploaded_lbp is not None:
         with tab4:
             st.subheader("Performa Channel (Tipe Toko)")
             channel_val = df.groupby('Channel')['NET_AMOUNT'].sum().reset_index()
-            channel_rep = calc_toko.groupby('Channel').agg(
-                Total_EC=('No Outlet', 'count'),
-                Toko_Lolos=('Status Lolos', 'sum')
-            ).reset_index()
+            channel_rep = calc_toko.groupby('Channel').agg(Total_EC=('No Outlet', 'count'), Toko_Lolos=('Status Lolos', 'sum')).reset_index()
             channel_merge = pd.merge(channel_val, channel_rep, on='Channel').sort_values(by='Total_EC', ascending=False)
             channel_merge['% Lolos Channel'] = ((channel_merge['Toko_Lolos'] / channel_merge['Total_EC']) * 100).round(1)
             channel_merge['Omset (Rp)'] = channel_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
             
-            # Penomoran mulai dari 1
             tbl_channel = beri_nomor_urut(channel_merge[['Channel', 'Total_EC', 'Toko_Lolos', '% Lolos Channel', 'Omset (Rp)']])
             st.dataframe(tbl_channel, use_container_width=True, hide_index=True)
 
-            fig_ch = px.bar(
-                channel_merge,
-                x='Channel',
-                y='Total_EC',
-                color='% Lolos Channel',
-                labels={'Total_EC': 'Jumlah Toko Tercover', '% Lolos Channel': '% Lolos MHS'},
-                color_continuous_scale='Blues',
-                title="Jumlah Toko Tercover & Kelulusan per Channel"
-            )
+            fig_ch = px.bar(channel_merge, x='Channel', y='Total_EC', color='% Lolos Channel', labels={'Total_EC': 'Jumlah Toko Tercover', '% Lolos Channel': '% Lolos MHS'}, color_continuous_scale='Blues', title="Jumlah Toko Tercover & Kelulusan per Channel")
             fig_ch.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
             st.plotly_chart(fig_ch, use_container_width=True)
 
         # TAB 5: ACTION PLAN GAP MHS
         with tab5:
-            st.subheader("🎯 Action Plan: Toko Belum Lolos (Prioritas Push SKU)")
+            st.subheader("🎯 Action Plan: Toko Belum Lolos & Detail Produk Belum Masuk")
             sls_options = ['SEMUA TIM SS'] + selected_salesmen
-            pilih_sales = st.selectbox("Pilih Salesman:", sls_options)
+            pilih_sales = st.selectbox("Filter Berdasarkan Salesman:", sls_options)
 
             df_action = calc_toko if pilih_sales == 'SEMUA TIM SS' else calc_toko[calc_toko['Salesman'] == pilih_sales]
-            df_gap = df_action[df_action['Status Lolos'] == 0].sort_values(by=['Gap SKU', 'Realisasi SKU Sold'], ascending=[True, False])
+            gap_outlets = df_action[df_action['Status Lolos'] == 0].sort_values(by=['Gap SKU', 'Realisasi SKU Sold'], ascending=[True, False])
 
-            st.write(f"Ditemukan **{len(df_gap):,}** toko yang belum lolos:")
+            st.write(f"Ditemukan **{len(gap_outlets):,}** toko yang belum lolos target:")
             cols_gap = ['No Outlet', 'Nama Outlet', 'Salesman', 'Channel', 'Kabupaten', 'Target SKU', 'Realisasi SKU Sold', 'Gap SKU']
             
-            # Penomoran mulai dari 1
-            tbl_gap = beri_nomor_urut(df_gap[cols_gap])
+            tbl_gap = beri_nomor_urut(gap_outlets[cols_gap])
             st.dataframe(tbl_gap, use_container_width=True, hide_index=True)
 
-            # Export All Data
-            buf = io.BytesIO()
-            with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-                display_sales.to_excel(writer, sheet_name='PERFORMA_SALESMAN', index=False)
-                df_gap[cols_gap].to_excel(writer, sheet_name='GAP_OUTLET_ACTION', index=False)
-                kab_merge.to_excel(writer, sheet_name='OMSET_KABUPATEN', index=False)
-                calc_toko.to_excel(writer, sheet_name='DATABASE_OUTLET', index=False)
+            st.markdown("---")
+            st.markdown("### 🔍 **Pemeriksaan Detail Produk Toko**")
+            st.caption("Pilih salah satu toko di bawah untuk melihat rincian produk MHS yang SUDAH masuk dan yang BELUM masuk:")
 
-            st.download_button(
-                label="📥 Unduh Laporan Lengkap (.xlsx)",
-                data=buf.getvalue(),
-                file_name="Laporan_Monitoring_Penjualan_MHS.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            if len(gap_outlets) > 0:
+                gap_outlets['Pilihan_Label'] = gap_outlets['No Outlet'].astype(str) + " - " + gap_outlets['Nama Outlet'] + " (Kurang " + gap_outlets['Gap SKU'].astype(str) + " SKU | " + gap_outlets['Salesman'] + ")"
+                outlet_options = gap_outlets['Pilihan_Label'].tolist()
+                
+                selected_outlet_label = st.selectbox("Pilih Toko untuk Melihat Detail Produk:", outlet_options)
+                selected_no_outlet = int(selected_outlet_label.split(" - ")[0])
+
+                toko_info = gap_outlets[gap_outlets['No Outlet'] == selected_no_outlet].iloc[0]
+                
+                s_force_toko = toko_info['Salesforce']
+                ch_pref_toko = toko_info['Channel_Prefix']
+                list_nama_sah, nama_kanal_str = get_keywords_for_channel(s_force_toko, ch_pref_toko)
+
+                st.markdown(f"""
+                <div class="outlet-card">
+                    <h4 style="margin:0; color:#0f172a;">🏪 {toko_info['Nama Outlet']} (No: {toko_info['No Outlet']})</h4>
+                    <p style="margin:4px 0 0 0; font-size:0.85rem; color:#475569;">
+                        Salesman: <b>{toko_info['Salesman']}</b> | Channel: <b>{toko_info['Channel']}</b> | Klasifikasi Mapping: <b style="color:#0284c7;">{nama_kanal_str}</b><br>
+                        Target Wajib: <b>{toko_info['Target SKU']} SKU</b> | Sudah Masuk: <b>{toko_info['Realisasi SKU Sold']} SKU</b> | 
+                        Kekurangan: <b style="color:#dc2626;">{toko_info['Gap SKU']} SKU Lagi</b>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                df_outlet_tx = df[df['No Outlet'] == selected_no_outlet]
+                prod_toko_agg = df_outlet_tx.groupby('Nama Produk')['NET_QTY'].sum()
+                
+                sudah_masuk_list = []
+                belum_masuk_list = []
+
+                for kw in list_nama_sah:
+                    ditemukan = False
+                    net_qty_total = 0
+                    nama_terbeli_real = ""
+                    for p_nama, qty in prod_toko_agg.items():
+                        if kw in str(p_nama).upper() and qty > 0:
+                            ditemukan = True
+                            net_qty_total += qty
+                            nama_terbeli_real = p_nama
+                            
+                    if ditemukan:
+                        sudah_masuk_list.append({'Kategori MHS': kw, 'Nama Produk Real': nama_terbeli_real, 'Net Qty': int(net_qty_total)})
+                    else:
+                        belum_masuk_list.append({'Kategori MHS / Produk Wajib': kw})
+
+                df_sudah = pd.DataFrame(sudah_masuk_list)
+                df_belum = pd.DataFrame(belum_masuk_list)
+
+                col_belum, col_sudah = st.columns(2)
+                with col_belum:
+                    st.markdown(f"#### ❌ Produk yang BELUM Masuk ({len(df_belum)} Pilihan)")
+                    if len(df_belum) > 0:
+                        st.dataframe(beri_nomor_urut(df_belum), use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Semua produk MHS sudah masuk.")
+                with col_sudah:
+                    st.markdown(f"#### ✅ Produk yang SUDAH Masuk ({len(df_sudah)} Varian)")
+                    if len(df_sudah) > 0:
+                        st.dataframe(beri_nomor_urut(df_sudah), use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Belum ada produk MHS yang masuk.")
+
+                buf_toko = io.BytesIO()
+                with pd.ExcelWriter(buf_toko, engine='openpyxl') as writer:
+                    df_belum.to_excel(writer, sheet_name='BELUM_MASUK', index=False)
+                    df_sudah.to_excel(writer, sheet_name='SUDAH_MASUK', index=False)
+                
+                st.download_button(
+                    label=f"📥 Unduh Rekomendasi Push SKU ({toko_info['Nama Outlet']})",
+                    data=buf_toko.getvalue(),
+                    file_name=f"Rekomendasi_SKU_{toko_info['No Outlet']}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.success("🎉 Seluruh toko yang tercover sudah lolos target MHS!")
+
+        # TAB 6: MASTER MAPPING & LIST SKU CHANNEL
+        with tab6:
+            st.subheader("📑 Master Mapping & Daftar Wajib SKU per Channel")
+            st.caption("Berikut adalah rincian daftar kata kunci produk wajib (Must Have SKU) yang dipetakan secara otomatis untuk masing-masing klasifikasi channel:")
+
+            c_ch1, c_ch2 = st.columns(2)
+            with c_ch1:
+                st.markdown("#### 1. Retail Kios GT (Channel 111/154)")
+                st.dataframe(beri_nomor_urut(pd.DataFrame({'Produk / Subbrand Wajib': KEYWORDS_GT_RETAIL_KIOS})), use_container_width=True, hide_index=True)
+
+                st.markdown("#### 2. Retail Large GT (Channel 113)")
+                st.dataframe(beri_nomor_urut(pd.DataFrame({'Produk / Subbrand Wajib': KEYWORDS_GT_RETAIL_LARGE})), use_container_width=True, hide_index=True)
+
+            with c_ch2:
+                st.markdown("#### 3. Grosir & Semi Grosir GT (Channel 114/115)")
+                st.dataframe(beri_nomor_urut(pd.DataFrame({'Produk / Subbrand Wajib': KEYWORDS_GT_GROSIR})), use_container_width=True, hide_index=True)
+
+                st.markdown("#### 4. General Modern Trade / GMM (Channel 110)")
+                st.dataframe(beri_nomor_urut(pd.DataFrame({'Produk / Subbrand Wajib': KEYWORDS_GMM})), use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+            st.markdown("#### 5. Speciality Trade / KVS ST (Salesforce KVS ST)")
+            st.dataframe(beri_nomor_urut(pd.DataFrame({'Produk / Subbrand Wajib': KEYWORDS_ST})), use_container_width=True, hide_index=True)
 
     except Exception as err:
         st.error(f"Gagal memproses file LBP: {str(err)}")

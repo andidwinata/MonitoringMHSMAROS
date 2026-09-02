@@ -1,21 +1,70 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import io
 
 st.set_page_config(
-    page_title="Executive Sales Monitoring (SS / RSM / GRSM)",
-    page_icon="🏢",
-    layout="wide"
+    page_title="Executive Sales Monitoring | FMCG Dashboard",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# --- 1. MASTER PARAMETER ---
+# --- CUSTOM CSS UNTUK UI MODERN ---
+st.markdown("""
+    <style>
+        .main {
+            background-color: #0e1117;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            margin-bottom: 12px;
+        }
+        .metric-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .metric-val {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 2px;
+        }
+        .metric-sub {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+        .badge-success {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-danger {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Master Konfigurasi
 DEFAULT_TARGET_CHANNEL = {
-    '111': 7,   # Kios / Retail Small
-    '154': 7,   # Wet Retail
-    '113': 10,  # Retail Large
-    '114': 15,  # Semi Grosir
-    '115': 15,  # Grosir Kelontong
-    '110': 25   # Grosir Modern / Supermarket
+    '111': 7, '154': 7, '113': 10, '114': 15, '115': 15, '110': 25
 }
 
 DEFAULT_MHS_LIST = [
@@ -27,53 +76,68 @@ DEFAULT_MHS_LIST = [
     '410807', '410808', '410809', '410810', '410884', '410885', '410886', '410887', '410888', '410889', '410890'
 ]
 
-# --- 2. SIDEBAR CONFIGURATION ---
-st.sidebar.title("⚙️ Parameter Operational")
-st.sidebar.markdown("**Role Access:** SS / RSM / GRSM")
+def parse_raw_lbp(uploaded_file):
+    if uploaded_file.name.endswith(('.txt', '.csv')):
+        raw_bytes = uploaded_file.read()
+        lines = raw_bytes.decode('utf-8', errors='ignore').splitlines()
+        cleaned_lines = []
+        for line in lines:
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if line_str.endswith('|'):
+                line_str = line_str[:-1]
+            cleaned_lines.append(line_str)
+        
+        first_line = cleaned_lines[0] if cleaned_lines else ""
+        sep = '|' if '|' in first_line else ('\t' if '\t' in first_line else (';' if ';' in first_line else ','))
+        df = pd.read_csv(io.StringIO('\n'.join(cleaned_lines)), sep=sep, low_memory=False)
+    else:
+        df = pd.read_excel(uploaded_file)
+    
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
 
-cb_standpro = st.sidebar.number_input(
-    "Target CB Cover / Standpro Area:",
-    min_value=1,
-    value=1090,
-    step=25,
-    help="Target Base Customer (CB) Standpro area untuk menentukan tier insentif dan % coverage."
-)
+# --- SIDEBAR OPERASIONAL ---
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=65)
+    st.markdown("### **Panel Kontrol Area**")
+    st.caption("Monitoring Operasional Salesman & Insentif MHS")
+    st.markdown("---")
+    
+    cb_standpro = st.number_input(
+        "🎯 Target Base CB Standpro:",
+        min_value=1,
+        value=1090,
+        step=50,
+        help="Target Customer Base Area untuk pembagi persentase kelulusan insentif."
+    )
+    
+    target_sales_rp = st.number_input(
+        "💰 Target Omset Sales (Rp, Opsional):",
+        min_value=0,
+        value=0,
+        step=50000000
+    )
+    
+    st.markdown("---")
+    uploaded_lbp = st.file_uploader("📥 Upload LBP (.txt / .csv / .xlsx)", type=['txt', 'csv', 'xlsx'])
+    uploaded_mhs = st.file_uploader("📋 Custom Master MHS (Opsional)", type=['csv', 'xlsx'])
 
-target_sales_rp = st.sidebar.number_input(
-    "Target Net Sales (Rp, Opsional):",
-    min_value=0,
-    value=0,
-    step=10000000,
-    help="Isi jika ingin memantau % Achievement Omset Value terhadap Target."
-)
-
-uploaded_lbp = st.sidebar.file_uploader("📂 Upload File LBP (.txt / .csv / .xlsx)", type=['txt', 'csv', 'xlsx'])
-uploaded_mhs = st.sidebar.file_uploader("📋 Upload Master MHS Custom (Opsional)", type=['csv', 'xlsx'])
-
-# --- 3. CORE PROCESSING ENGINE ---
+# --- MAIN DASHBOARD AREA ---
 if uploaded_lbp is not None:
     try:
-        with st.spinner("Memproses seluruh metriks KPI dari LBP..."):
-            # Load LBP dengan deteksi delimiter otomatis
-            if uploaded_lbp.name.endswith(('.txt', '.csv')):
-                raw_bytes = uploaded_lbp.read()
-                sample = raw_bytes[:4096].decode('utf-8', errors='ignore')
-                sep = '\t' if '\t' in sample else (';' if ';' in sample else (',' if ',' in sample else '|'))
-                uploaded_lbp.seek(0)
-                df = pd.read_csv(io.StringIO(raw_bytes.decode('utf-8', errors='ignore')), sep=sep, low_memory=False)
-            else:
-                df = pd.read_excel(uploaded_lbp)
+        with st.spinner("⚡ Mengkalkulasi data transaksi dan metriks KPI..."):
+            df = parse_raw_lbp(uploaded_lbp)
 
-            df.columns = [str(c).strip() for c in df.columns]
-
-            # Master MHS List
+            # Master MHS
             if uploaded_mhs is not None:
                 df_ref = pd.read_excel(uploaded_mhs) if uploaded_mhs.name.endswith('.xlsx') else pd.read_csv(uploaded_mhs)
                 mhs_pcode_set = set(df_ref['Pcode'].astype(str).str.strip().unique())
             else:
                 mhs_pcode_set = set(DEFAULT_MHS_LIST)
 
-            # Standardisasi Tipe Data Transaksi
+            # Standardisasi Tipe Data
             df['Pcode_Str'] = df['Pcode'].astype(str).str.strip()
             df['QTYPCS'] = pd.to_numeric(df['QTYPCS'], errors='coerce').fillna(0)
             df['AMOUNT'] = pd.to_numeric(df['AMOUNT'], errors='coerce').fillna(0)
@@ -85,13 +149,13 @@ if uploaded_lbp is not None:
             df['RETUR_AMOUNT'] = df['AMOUNT'].where(is_retur, 0)
             df['BRUTO_AMOUNT'] = df['AMOUNT'].where(~is_retur, 0)
 
-            # Hitung MHS Outlet Level
+            # Evaluasi SKU MHS Outlet Level
             df_mhs_tx = df[df['Pcode_Str'].isin(mhs_pcode_set)].copy()
             agg_sku = df_mhs_tx.groupby(['No Outlet', 'Pcode_Str'])['NET_QTY'].sum().reset_index()
             valid_mhs = agg_sku[agg_sku['NET_QTY'] > 0]
             sku_per_toko = valid_mhs.groupby('No Outlet').size().reset_index(name='Realisasi SKU Sold')
 
-            # Master Toko Tercover (EC)
+            # Profil Master Toko
             outlet_master = df[['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Kabupaten', 'Kecamatan']].drop_duplicates(subset=['No Outlet'])
             calc_toko = pd.merge(outlet_master, sku_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
             calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
@@ -101,7 +165,7 @@ if uploaded_lbp is not None:
             calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
             calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
 
-            # --- KPI MAKRO AREA ---
+            # Ringkasan KPI Makro
             total_ec = len(calc_toko)
             total_lolos_mhs = calc_toko['Status Lolos'].sum()
             ach_cb_standpro = (total_lolos_mhs / cb_standpro) * 100
@@ -111,147 +175,232 @@ if uploaded_lbp is not None:
             total_retur = df['RETUR_AMOUNT'].sum()
             retur_rate = (total_retur / total_bruto * 100) if total_bruto > 0 else 0
 
-            # Skema Tier Insentif
-            if ach_cb_standpro >= 80: tier_label = "Tier 4 (≥ 80%) [MAX]"
-            elif ach_cb_standpro >= 70: tier_label = "Tier 3 (70% - 79.9%)"
-            elif ach_cb_standpro >= 60: tier_label = "Tier 2 (60% - 69.9%)"
-            elif ach_cb_standpro >= 50: tier_label = "Tier 1 (50% - 59.9%)"
-            else: tier_label = "< 50% (Belum Lolos Tier)"
+            # Tier Insentif
+            if ach_cb_standpro >= 80: 
+                tier_label = "Tier 4 (≥ 80%) [MAX]"
+                tier_color = "#22c55e"
+            elif ach_cb_standpro >= 70: 
+                tier_label = "Tier 3 (70% - 79.9%)"
+                tier_color = "#06b6d4"
+            elif ach_cb_standpro >= 60: 
+                tier_label = "Tier 2 (60% - 69.9%)"
+                tier_color = "#f59e0b"
+            elif ach_cb_standpro >= 50: 
+                tier_label = "Tier 1 (50% - 59.9%)"
+                tier_color = "#eab308"
+            else: 
+                tier_label = "< 50% (Belum Lolos Tier)"
+                tier_color = "#ef4444"
 
-        # --- TAMPILAN DASHBOARD MULTI-TAB ---
-        st.title("📊 Monitoring Operasional & Eksekutif Sales (SS / RSM / GRSM)")
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📌 Executive Overview", 
-            "👥 Sales Force Performance", 
-            "📦 Subbrand & Divisi", 
-            "🏬 Channel & Territory", 
+            gap_toko_t1 = max(0, int(cb_standpro * 0.5) - total_lolos_mhs)
+
+        # Header Title
+        st.markdown("<h2 style='margin-bottom:0;'>⚡ Executive Monitoring Dashboard</h2>", unsafe_allow_html=True)
+        st.caption(f"Sales Supervision & Incentive Performance Tracker | Base CB Standpro: **{cb_standpro:,}** Toko")
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Baris Kartu Metrik Modern
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        with kpi1:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-title">Net Sales Value</div>
+                <div class="metric-val">Rp {total_net_sales:,.0f}</div>
+                <div class="metric-sub">Gross: Rp {total_bruto:,.0f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with kpi2:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-title">Customer Covered (EC)</div>
+                <div class="metric-val">{total_ec:,} <span style="font-size:1rem; color:#94a3b8;">Toko</span></div>
+                <div class="metric-sub">Total Faktur: {df['Faktur'].nunique():,}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with kpi3:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-title">Toko Lolos Target MHS</div>
+                <div class="metric-val" style="color:#38bdf8;">{total_lolos_mhs:,} <span style="font-size:1rem; color:#94a3b8;">Toko</span></div>
+                <div class="metric-sub">Pencapaian: {ach_cb_standpro:.2f}% vs CB</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with kpi4:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-title">Status Tier Insentif</div>
+                <div class="metric-val" style="color:{tier_color}; font-size:1.35rem;">{tier_label}</div>
+                <div class="metric-sub">Gap ke Tier 1 (50%): <b>{gap_toko_t1:,} Toko</b></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Tabs Navigasi Dashboard
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Area & Sales Performance", 
+            "📦 Subbrand & Divisi Mix", 
+            "🏬 Channel & Rayon Analytics", 
             "🎯 MHS Gap Action Plan"
         ])
 
-        # TAB 1: EXECUTIVE OVERVIEW (RSM / GRSM VIEW)
+        # TAB 1: AREA & SALES PERFORMANCE
         with tab1:
-            st.subheader("High-Level KPIs")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Net Sales Value", f"Rp {total_net_sales:,.0f}")
-            c2.metric("Total Toko Transaksi (EC)", f"{total_ec:,} Toko")
-            c3.metric("Toko Lolos MHS", f"{total_lolos_mhs:,} Toko")
-            c4.metric("% Pencapaian vs CB Standpro", f"{ach_cb_standpro:.1f}%")
+            col_gauge, col_bar = st.columns([1, 2])
+            
+            with col_gauge:
+                st.markdown("##### 🎯 Progress Menuju Tier Insentif")
+                fig_gauge = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = ach_cb_standpro,
+                    number = {'suffix': "%", 'font': {'size': 32}},
+                    gauge = {
+                        'axis': {'range': [0, 100], 'tickwidth': 1},
+                        'bar': {'color': tier_color},
+                        'steps': [
+                            {'range': [0, 50], 'color': "rgba(239, 68, 68, 0.15)"},
+                            {'range': [50, 70], 'color': "rgba(234, 179, 8, 0.15)"},
+                            {'range': [70, 80], 'color': "rgba(6, 182, 212, 0.15)"},
+                            {'range': [80, 100], 'color': "rgba(34, 197, 94, 0.15)"}
+                        ],
+                        'threshold': {
+                            'line': {'color': "white", 'width': 3},
+                            'thickness': 0.75,
+                            'value': 50
+                        }
+                    }
+                ))
+                fig_gauge.update_layout(height=280, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)")
+                st.plotly_chart(fig_gauge, use_container_width=True)
 
-            c5, c6, c7, c8 = st.columns(4)
-            c5.metric("Gross Sales", f"Rp {total_bruto:,.0f}")
-            c6.metric("Retur Rate", f"{retur_rate:.2f}%", delta=f"-Rp {total_retur:,.0f}", delta_color="inverse")
-            c7.metric("Status Insentif Area", tier_label)
-            gap_toko_t1 = max(0, int(cb_standpro * 0.5) - total_lolos_mhs)
-            c8.metric("Gap Toko ke Tier 1 (50%)", f"{gap_toko_t1:,} Toko" if gap_toko_t1 > 0 else "✅ Tercapai")
+            with col_bar:
+                st.markdown("##### 👥 Performa Toko Lolos per Salesman")
+                sales_mhs_summary = calc_toko.groupby('Salesman').agg(
+                    Toko_Tercover=('No Outlet', 'count'),
+                    Toko_Lolos=('Status Lolos', 'sum')
+                ).reset_index()
+                
+                fig_bar = px.bar(
+                    sales_mhs_summary,
+                    x='Salesman',
+                    y=['Toko_Tercover', 'Toko_Lolos'],
+                    barmode='group',
+                    color_discrete_sequence=['#475569', '#38bdf8'],
+                    labels={'value': 'Jumlah Toko', 'variable': 'Kategori'}
+                )
+                fig_bar.update_layout(height=280, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                st.plotly_chart(fig_bar, use_container_width=True)
 
-            if target_sales_rp > 0:
-                ach_val = (total_net_sales / target_sales_rp) * 100
-                st.progress(min(ach_val / 100, 1.0))
-                st.caption(f"Achievement Sales Value vs Target (Rp {target_sales_rp:,.0f}): **{ach_val:.2f}%**")
-
-        # TAB 2: SALES FORCE PERFORMANCE (SS VIEW)
-        with tab2:
-            st.subheader("Performa Tim Salesman")
+            st.markdown("##### 📋 Matriks Lengkap Tim Salesman")
             sales_val = df.groupby(['Kode Sales', 'Salesman']).agg(
                 Net_Sales=('NET_AMOUNT', 'sum'),
                 Total_Faktur=('Faktur', 'nunique')
             ).reset_index()
 
-            sales_mhs = calc_toko.groupby(['Kode Sales', 'Salesman']).agg(
+            sales_agg = calc_toko.groupby(['Kode Sales', 'Salesman']).agg(
                 EC=('No Outlet', 'count'),
                 Toko_Lolos_MHS=('Status Lolos', 'sum'),
                 Avg_SKU=('Realisasi SKU Sold', 'mean')
             ).reset_index()
 
-            sales_perf = pd.merge(sales_val, sales_mhs, on=['Kode Sales', 'Salesman'])
-            sales_perf['% Strike Rate MHS'] = ((sales_perf['Toko_Lolos_MHS'] / sales_perf['EC']) * 100).round(1)
-            sales_perf['Drop Size / Faktur'] = (sales_perf['Net_Sales'] / sales_perf['Total_Faktur']).round(0)
-            sales_perf['Avg_SKU'] = sales_perf['Avg_SKU'].round(1)
+            sales_table = pd.merge(sales_val, sales_agg, on=['Kode Sales', 'Salesman'])
+            sales_table['Strike_Rate'] = ((sales_table['Toko_Lolos_MHS'] / sales_table['EC']) * 100).round(1)
+            sales_table['Avg_SKU'] = sales_table['Avg_SKU'].round(1)
+            sales_table['Drop_Size'] = (sales_table['Net_Sales'] / sales_table['Total_Faktur']).round(0)
 
             # Format tampilan
-            display_sales = sales_perf.copy()
-            display_sales['Net_Sales (Rp)'] = display_sales['Net_Sales'].apply(lambda x: f"Rp {x:,.0f}")
-            display_sales['Drop Size / Faktur'] = display_sales['Drop Size / Faktur'].apply(lambda x: f"Rp {x:,.0f}")
+            disp_table = sales_table.copy()
+            disp_table['Net_Sales (Rp)'] = disp_table['Net_Sales'].apply(lambda x: f"Rp {x:,.0f}")
+            disp_table['Drop_Size (Rp)'] = disp_table['Drop_Size'].apply(lambda x: f"Rp {x:,.0f}")
+            disp_table['Strike_Rate (%)'] = disp_table['Strike_Rate'].apply(lambda x: f"{x:.1f}%")
 
             st.dataframe(
-                display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / Faktur']],
+                disp_table[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'EC', 'Toko_Lolos_MHS', 'Strike_Rate (%)', 'Avg_SKU', 'Drop_Size (Rp)']],
                 use_container_width=True
             )
 
-        # TAB 3: SUBBRAND & DIVISI CONTRIBUTION
-        with tab3:
-            st.subheader("Kontribusi Subbrand & Kategori Produk")
-            col_sb1, col_sb2 = st.columns(2)
+        # TAB 2: SUBBRAND & DIVISI MIX
+        with tab2:
+            st.markdown("##### 📦 Kontribusi Omset Produk Fokus")
+            col_pie1, col_pie2 = st.columns(2)
             
-            with col_sb1:
-                st.markdown("**Top 10 Subbrand berdasarkan Omset Net:**")
+            with col_pie1:
                 if 'SUBBRANDNAME' in df.columns:
-                    top_sb = df.groupby('SUBBRANDNAME')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False).head(10)
-                    top_sb['Net Omset (Rp)'] = top_sb['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
-                    top_sb['Kontribusi (%)'] = ((top_sb['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    st.dataframe(top_sb[['SUBBRANDNAME', 'Net Omset (Rp)', 'Kontribusi (%)']], use_container_width=True)
+                    top_sb = df.groupby('SUBBRANDNAME')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False).head(8)
+                    fig_pie = px.pie(
+                        top_sb, 
+                        names='SUBBRANDNAME', 
+                        values='NET_AMOUNT', 
+                        hole=0.45,
+                        color_discrete_sequence=px.colors.qualitative.Prism,
+                        title="Top 8 Subbrand by Net Sales"
+                    )
+                    fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+                    st.plotly_chart(fig_pie, use_container_width=True)
 
-            with col_sb2:
-                st.markdown("**Penjualan per Divisi:**")
+            with col_pie2:
                 if 'Divisi' in df.columns:
-                    div_sales = df.groupby('Divisi')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False)
-                    div_sales['Net Omset (Rp)'] = div_sales['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
-                    div_sales['Kontribusi (%)'] = ((div_sales['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    st.dataframe(div_sales[['Divisi', 'Net Omset (Rp)', 'Kontribusi (%)']], use_container_width=True)
+                    div_data = df.groupby('Divisi')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False)
+                    div_data['Divisi'] = "Divisi " + div_data['Divisi'].astype(str)
+                    fig_div = px.bar(
+                        div_data, 
+                        x='Divisi', 
+                        y='NET_AMOUNT',
+                        color='Divisi',
+                        color_discrete_sequence=px.colors.qualitative.Safe,
+                        title="Sales Value per Divisi"
+                    )
+                    fig_div.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                    st.plotly_chart(fig_div, use_container_width=True)
 
-        # TAB 4: CHANNEL & TERRITORY
-        with tab4:
-            st.subheader("Performa per Tipe Toko & Rayon")
-            col_ch, col_reg = st.columns(2)
-            
-            with col_ch:
-                st.markdown("**Performa Channel (Tipe Toko):**")
-                channel_rep = calc_toko.groupby('Channel').agg(
+        # TAB 3: CHANNEL & RAYON
+        with tab3:
+            col_ch1, col_ch2 = st.columns(2)
+            with col_ch1:
+                st.markdown("##### 🏬 Performa per Channel Toko")
+                ch_summary = calc_toko.groupby('Channel').agg(
                     Total_EC=('No Outlet', 'count'),
                     Toko_Lolos=('Status Lolos', 'sum')
                 ).reset_index()
-                channel_rep['% Lolos Channel'] = ((channel_rep['Toko_Lolos'] / channel_rep['Total_EC']) * 100).round(1)
-                st.dataframe(channel_rep.sort_values(by='Total_EC', ascending=False), use_container_width=True)
+                ch_summary['Strike Rate (%)'] = ((ch_summary['Toko_Lolos'] / ch_summary['Total_EC']) * 100).round(1)
+                st.dataframe(ch_summary.sort_values(by='Total_EC', ascending=False), use_container_width=True)
 
-            with col_reg:
-                st.markdown("**Performa per Kabupaten:**")
+            with col_ch2:
+                st.markdown("##### 📍 Performa per Wilayah (Kabupaten)")
                 if 'Kabupaten' in calc_toko.columns:
-                    kab_rep = calc_toko.groupby('Kabupaten').agg(
+                    kab_summary = calc_toko.groupby('Kabupaten').agg(
                         Total_EC=('No Outlet', 'count'),
                         Toko_Lolos=('Status Lolos', 'sum')
                     ).reset_index()
-                    kab_rep['% Lolos'] = ((kab_rep['Toko_Lolos'] / kab_rep['Total_EC']) * 100).round(1)
-                    st.dataframe(kab_rep.sort_values(by='Total_EC', ascending=False), use_container_width=True)
+                    kab_summary['Strike Rate (%)'] = ((kab_summary['Toko_Lolos'] / kab_summary['Total_EC']) * 100).round(1)
+                    st.dataframe(kab_summary.sort_values(by='Total_EC', ascending=False), use_container_width=True)
 
-        # TAB 5: ACTION PLAN GAP MHS
-        with tab5:
-            st.subheader("🎯 Action Plan: Toko Belum Lolos (Prioritas Push SKU)")
-            sls_options = ['ALL'] + sorted(calc_toko['Salesman'].dropna().unique().tolist())
-            pilih_sales = st.selectbox("Pilih Salesman:", sls_options)
+        # TAB 4: MHS ACTION PLAN
+        with tab4:
+            st.markdown("##### 🎯 Prioritas Push SKU (Toko Belum Lolos)")
+            sls_filter = ['ALL'] + sorted(calc_toko['Salesman'].dropna().unique().tolist())
+            pilih_salesman = st.selectbox("Pilih Salesman:", sls_filter)
 
-            df_action = calc_toko if pilih_sales == 'ALL' else calc_toko[calc_toko['Salesman'] == pilih_sales]
-            df_gap = df_action[df_action['Status Lolos'] == 0].sort_values(by=['Gap SKU', 'Realisasi SKU Sold'], ascending=[True, False])
+            action_data = calc_toko if pilih_salesman == 'ALL' else calc_toko[calc_toko['Salesman'] == pilih_salesman]
+            df_action_gap = action_data[action_data['Status Lolos'] == 0].sort_values(by=['Gap SKU', 'Realisasi SKU Sold'], ascending=[True, False])
 
-            st.write(f"Ditemukan **{len(df_gap):,}** toko yang belum lolos:")
-            cols_gap = ['No Outlet', 'Nama Outlet', 'Salesman', 'Channel', 'Target SKU', 'Realisasi SKU Sold', 'Gap SKU']
-            st.dataframe(df_gap[cols_gap], use_container_width=True)
+            st.write(f"Menampilkan **{len(df_action_gap):,}** toko prioritas dorong SKU:")
+            kolom_tampil = ['No Outlet', 'Nama Outlet', 'Salesman', 'Channel', 'Target SKU', 'Realisasi SKU Sold', 'Gap SKU']
+            st.dataframe(df_action_gap[kolom_tampil], use_container_width=True)
 
-            # Export All Data
-            buf = io.BytesIO()
-            with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-                display_sales.to_excel(writer, sheet_name='PERFORMA_SALESMAN', index=False)
-                df_gap[cols_gap].to_excel(writer, sheet_name='GAP_OUTLET_ACTION', index=False)
-                calc_toko.to_excel(writer, sheet_name='DATABASE_OUTLET', index=False)
+            # Export Excel
+            export_buffer = io.BytesIO()
+            with pd.ExcelWriter(export_buffer, engine='openpyxl') as writer:
+                sales_table.to_excel(writer, sheet_name='SUMMARY_SALESMAN', index=False)
+                df_action_gap[kolom_tampil].to_excel(writer, sheet_name='GAP_OUTLET_ACTION', index=False)
+                calc_toko.to_excel(writer, sheet_name='ALL_OUTLET_DATA', index=False)
 
             st.download_button(
-                label="📥 Download Executive Report (.xlsx)",
-                data=buf.getvalue(),
-                file_name="Laporan_Monitoring_Executive_SS_RSM.xlsx",
+                label="📥 Download Action Plan & Report (.xlsx)",
+                data=export_buffer.getvalue(),
+                file_name="Action_Plan_Monitoring_MHS.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-    except Exception as err:
-        st.error(f"Gagal memproses file LBP: {str(err)}")
-        st.info("Pastikan file LBP TXT memuat kolom utama: No Outlet, Nama Outlet, Kode Sales, Salesman, Channel, Pcode, QTYPCS, AMOUNT, TRANSTYPE.")
+    except Exception as e:
+        st.error(f"Gagal memproses file LBP: {str(e)}")
 else:
-    st.info("👈 Silakan upload file **LBP.txt** pada menu sebelah kiri untuk mengenerate dashboard monitoring SS / RSM / GRSM secara otomatis.")
+    st.info("👈 Silakan upload file **LBP.txt** Anda di panel sebelah kiri untuk menampilkan visual dashboard.")

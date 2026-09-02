@@ -299,9 +299,9 @@ if uploaded_lbp is not None:
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Tabel Salesman (.xlsx)", data=convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales}), file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-        # TAB 2: OMSET & WILAYAH
+        # TAB 2: OMSET & WILAYAH (TERMASUK OMSET BY PASAR)
         with tab2:
-            st.subheader("Analisis Penjualan Berdasarkan Wilayah")
+            st.subheader("Analisis Penjualan Berdasarkan Wilayah & Pasar")
             col_kab, col_kec = st.columns(2)
             with col_kab:
                 st.markdown("#### Penjualan per Kabupaten")
@@ -336,6 +336,24 @@ if uploaded_lbp is not None:
                 fig_kec = px.bar(kec_merge.sort_values(by='NET_AMOUNT', ascending=True), x='NET_AMOUNT', y='Kecamatan', orientation='h', labels={'NET_AMOUNT': 'Omset Bersih (Rp)'}, color_discrete_sequence=['#0284c7'], title="Grafik Omset Top 10 Kecamatan")
                 fig_kec.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
                 st.plotly_chart(fig_kec, use_container_width=True)
+
+            # TAMBAHAN SECTION: OMSET BERDASARKAN PASAR / RAYON
+            if 'Kode Pasar' in df.columns and (df['Kode Pasar'] != '-').any():
+                st.markdown("---")
+                st.markdown("#### 🛒 Analisis Omset Berdasarkan Pasar / Rayon")
+                pasar_val = df.groupby('Kode Pasar')['NET_AMOUNT'].sum().reset_index()
+                pasar_out = calc_toko.groupby('Kode Pasar').agg(
+                    Total_Toko=('No Outlet', 'count'),
+                    Toko_Lolos=('Status Lolos', 'sum')
+                ).reset_index()
+                pasar_merge = pd.merge(pasar_val, pasar_out, on='Kode Pasar').sort_values(by='NET_AMOUNT', ascending=False)
+                pasar_merge['Kontribusi (%)'] = ((pasar_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
+                pasar_merge['Strike Rate (%)'] = ((pasar_merge['Toko_Lolos'] / pasar_merge['Total_Toko']) * 100).round(1)
+                pasar_merge['Omset (Rp)'] = pasar_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+                
+                tbl_pasar = beri_nomor_urut(pasar_merge[['Kode Pasar', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
+                st.dataframe(tbl_pasar, use_container_width=True, hide_index=True)
+                st.download_button("📥 Download Excel Omset per Pasar", data=convert_df_to_excel({'OMSET_PASAR': tbl_pasar}), file_name="Omset_per_Pasar.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
         # TAB 3: SUBBRAND & DIVISI
         with tab3:

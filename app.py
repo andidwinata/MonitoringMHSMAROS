@@ -40,6 +40,7 @@ def parse_raw_lbp(uploaded_file):
             line_str = line.strip()
             if not line_str:
                 continue
+            # Buang pipe kosong di ujung baris data jika ada
             if line_str.endswith('|'):
                 line_str = line_str[:-1]
             cleaned_lines.append(line_str)
@@ -50,6 +51,7 @@ def parse_raw_lbp(uploaded_file):
     else:
         df = pd.read_excel(uploaded_file)
     
+    # Hapus spasi tak terlihat di nama kolom
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
@@ -86,8 +88,22 @@ if uploaded_lbp is not None:
             df_raw['Pcode_Str'] = df_raw['Pcode'].astype(str).str.strip()
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
             df_raw['AMOUNT'] = pd.to_numeric(df_raw['AMOUNT'], errors='coerce').fillna(0)
-            df_raw['Kabupaten'] = df_raw['Kabupaten'].fillna('LAINNYA').astype(str).str.strip()
-            df_raw['Kecamatan'] = df_raw['Kecamatan'].fillna('LAINNYA').astype(str).str.strip()
+
+            # Proteksi Kolom Wilayah & Pasar (jika tidak ada di file LBP, isi '-')
+            if 'Kabupaten' not in df_raw.columns:
+                df_raw['Kabupaten'] = '-'
+            else:
+                df_raw['Kabupaten'] = df_raw['Kabupaten'].fillna('-').astype(str).str.strip()
+
+            if 'Kecamatan' not in df_raw.columns:
+                df_raw['Kecamatan'] = '-'
+            else:
+                df_raw['Kecamatan'] = df_raw['Kecamatan'].fillna('-').astype(str).str.strip()
+
+            if 'Kode Pasar' not in df_raw.columns:
+                df_raw['Kode Pasar'] = '-'
+            else:
+                df_raw['Kode Pasar'] = df_raw['Kode Pasar'].fillna('-').astype(str).str.strip()
             
             # Hitung Faktur vs Retur
             is_retur = df_raw['TRANSTYPE'].astype(str).str.strip().str.upper() == 'R'
@@ -98,10 +114,10 @@ if uploaded_lbp is not None:
 
             all_salesmen = sorted(df_raw['Salesman'].dropna().unique().tolist())
 
-        # Filter Salesman Tim SPV di Sidebar
+        # --- FILTER TIM SALESMAN (MULTI-SELECT UNTUK SS) ---
         with st.sidebar:
             st.markdown("---")
-            st.markdown("### 👥 **Pilih Salesman (Tim SPV)**")
+            st.markdown("### 👥 **Pilih Salesman (Tim SS)**")
             select_all = st.checkbox("Pilih Semua Salesman (Total Area)", value=True)
             
             if select_all:
@@ -113,16 +129,19 @@ if uploaded_lbp is not None:
             st.warning("Silakan pilih minimal 1 salesman pada menu di sebelah kiri.")
             st.stop()
 
+        # Filter data sesuai salesman yang dipilih SS
         df = df_raw[df_raw['Salesman'].isin(selected_salesmen)].copy()
 
-        # Agregasi SKU MHS (Varian Unik Net Qty > 0)
+        # Perhitungan Realisasi MHS per Outlet (Distinct SKU)
         df_mhs_tx = df[df['Pcode_Str'].isin(mhs_pcode_set)].copy()
         agg_sku = df_mhs_tx.groupby(['No Outlet', 'Pcode_Str'])['NET_QTY'].sum().reset_index()
         valid_mhs = agg_sku[agg_sku['NET_QTY'] > 0]
         sku_per_toko = valid_mhs.groupby('No Outlet').size().reset_index(name='Realisasi SKU Sold')
 
-        # Database Toko Tercover
-        outlet_master = df[['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Kabupaten', 'Kecamatan']].drop_duplicates(subset=['No Outlet'])
+        # Profil Master Toko Terfilter
+        base_cols = ['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Kabupaten', 'Kecamatan', 'Kode Pasar']
+        cols_exist = [c for c in base_cols if c in df.columns]
+        outlet_master = df[cols_exist].drop_duplicates(subset=['No Outlet'])
         calc_toko = pd.merge(outlet_master, sku_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
@@ -238,7 +257,7 @@ if uploaded_lbp is not None:
                 Avg_SKU=('Realisasi SKU Sold', 'mean')
             ).reset_index()
 
-            sales_perf = pd.merge(sales_val, sales_mhs := sales_agg, on=['Kode Sales', 'Salesman'])
+            sales_perf = pd.merge(sales_val, sales_agg, on=['Kode Sales', 'Salesman'])
             sales_perf['% Strike Rate MHS'] = ((sales_perf['Toko_Lolos_MHS'] / sales_perf['EC']) * 100).round(1)
             sales_perf['Drop Size / Faktur'] = (sales_perf['Net_Sales'] / sales_perf['Total_Faktur']).round(0)
             sales_perf['Avg_SKU'] = sales_perf['Avg_SKU'].round(1)
@@ -317,16 +336,15 @@ if uploaded_lbp is not None:
 
             st.markdown("---")
             st.markdown("#### Sebaran Penjualan per Pasar / Rayon")
-            if 'Kode Pasar' in df.columns:
-                pasar_val = df.groupby('Kode Pasar')['NET_AMOUNT'].sum().reset_index()
-                pasar_out = calc_toko.groupby('Kode Pasar').agg(
-                    Toko_Aktif=('No Outlet', 'count'),
-                    Toko_Lolos=('Status Lolos', 'sum')
-                ).reset_index()
-                pasar_merge = pd.merge(pasar_val, pasar_out, on='Kode Pasar').sort_values(by='NET_AMOUNT', ascending=False).head(15)
-                pasar_merge['Omset Bersih (Rp)'] = pasar_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
-                pasar_merge['Strike Rate (%)'] = ((pasar_merge['Toko_Lolos'] / pasar_merge['Toko_Aktif']) * 100).round(1)
-                st.dataframe(pasar_merge[['Kode Pasar', 'Omset Bersih (Rp)', 'Toko_Aktif', 'Toko_Lolos', 'Strike Rate (%)']], use_container_width=True)
+            pasar_val = df.groupby('Kode Pasar')['NET_AMOUNT'].sum().reset_index()
+            pasar_out = calc_toko.groupby('Kode Pasar').agg(
+                Toko_Aktif=('No Outlet', 'count'),
+                Toko_Lolos=('Status Lolos', 'sum')
+            ).reset_index()
+            pasar_merge = pd.merge(pasar_val, pasar_out, on='Kode Pasar').sort_values(by='NET_AMOUNT', ascending=False).head(15)
+            pasar_merge['Omset Bersih (Rp)'] = pasar_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+            pasar_merge['Strike Rate (%)'] = ((pasar_merge['Toko_Lolos'] / pasar_merge['Toko_Aktif']) * 100).round(1)
+            st.dataframe(pasar_merge[['Kode Pasar', 'Omset Bersih (Rp)', 'Toko_Aktif', 'Toko_Lolos', 'Strike Rate (%)']], use_container_width=True)
 
         # TAB 3: SUBBRAND & DIVISI
         with tab3:
@@ -404,7 +422,7 @@ if uploaded_lbp is not None:
         # TAB 5: ACTION PLAN GAP MHS
         with tab5:
             st.subheader("🎯 Action Plan: Toko Belum Lolos (Prioritas Push SKU)")
-            sls_options = ['SEMUA TIM SPV'] + selected_salesmen
+            sls_options = ['SEMUA TIM SS'] + selected_salesmen
             pilih_sales = st.selectbox("Pilih Salesman:", sls_options)
 
             df_action = calc_toko if pilih_sales == 'SEMUA TIM SPV' else calc_toko[calc_toko['Salesman'] == pilih_sales]
@@ -423,7 +441,7 @@ if uploaded_lbp is not None:
                 calc_toko.to_excel(writer, sheet_name='DATABASE_OUTLET', index=False)
 
             st.download_button(
-                label="📥 Unduh Laporan Lengkap (.xlsx)",
+                label="📥 Download Laporan Lengkap (.xlsx)",
                 data=buf.getvalue(),
                 file_name="Laporan_Monitoring_Penjualan_MHS.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

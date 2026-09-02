@@ -10,6 +10,26 @@ st.set_page_config(
     layout="wide"
 )
 
+# CSS 
+st.markdown("""
+    <style>
+        [data-testid="stMetricValue"] {
+            font-size: 1.45rem !important;
+            word-break: break-word;
+            white-space: normal;
+        }
+        [data-testid="stMetricDelta"] {
+            font-size: 0.82rem !important;
+            white-space: normal;
+        }
+        .metric-subtext {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # 1. Target SKU per Channel (Berdasarkan 3 digit awal Channel)
 DEFAULT_TARGET_CHANNEL = {
     '111': 7,   # Kios / Retail Small
@@ -55,7 +75,7 @@ def parse_raw_lbp(uploaded_file):
 
 # --- SIDEBAR OPERASIONAL ---
 st.sidebar.title("⚙️ Pengaturan Operasional")
-st.sidebar.markdown("**Akses:** SS / HOA")
+st.sidebar.markdown("**Akses:** SS / HOA MV42")
 
 cb_standpro = st.sidebar.number_input(
     "Target Standpro (CB Area):",
@@ -160,7 +180,7 @@ if uploaded_lbp is not None:
 
         # Tier Insentif
         if ach_cb_standpro >= 80: 
-            tier_label = "Tier 4 (≥ 80%) [Maksimal]"
+            tier_label = "Tier 4 (≥ 80%)"
             gauge_color = "#16a34a"
         elif ach_cb_standpro >= 70: 
             tier_label = "Tier 3 (70% - 79.9%)"
@@ -172,7 +192,7 @@ if uploaded_lbp is not None:
             tier_label = "Tier 1 (50% - 59.9%)"
             gauge_color = "#ca8a04"
         else: 
-            tier_label = "< 50% (Belum Masuk Tier)"
+            tier_label = "Belum Masuk Tier"
             gauge_color = "#dc2626"
 
         target_tier1 = int(cb_standpro * 0.5)
@@ -182,64 +202,74 @@ if uploaded_lbp is not None:
         st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
-        # --- LOGIKA DELTA PANAH & PERSENTASE RETUR ---
+        # --- LOGIKA DELTA TERSIMPLIFIKASI (TIDAK NABRAK) ---
         is_lolos_tier = ach_cb_standpro >= 50.0
 
+        # Delta Omset: Fokus ke persentase retur agar rapi
         if total_retur > 0:
-            delta_omset = f"-{retur_rate:.2f}% Retur (Bruto Rp {total_bruto:,.0f})"
-            delta_color_omset = "normal"  
+            delta_omset = f"-{retur_rate:.2f}% Retur"
+            delta_color_omset = "normal"  # Panah merah ke bawah
         else:
-            delta_omset = f"+0% Retur (Bruto Rp {total_bruto:,.0f})"
+            delta_omset = "+0.00% Retur"
             delta_color_omset = "normal"
 
+        # Delta MHS
         if is_lolos_tier:
-            delta_mhs = f"+{ach_cb_standpro:.2f}% vs Standpro"
-            delta_color_mhs = "normal"   
+            delta_mhs = f"+{ach_cb_standpro:.2f}% (Lolos Target)"
+            delta_color_mhs = "normal"   # Panah hijau ke atas
         else:
-            delta_mhs = f"-{ach_cb_standpro:.2f}% vs Standpro (Target 50%)"
-            delta_color_mhs = "normal"   
+            delta_mhs = f"-{ach_cb_standpro:.2f}% (Target 50%)"
+            delta_color_mhs = "normal"   # Panah merah ke bawah
 
+        # Delta Status Insentif
         if gap_toko_t1 == 0:
-            delta_status = "+Target Tier 1 Tercapai"
-            delta_color_status = "normal" 
+            delta_status = "+Tier 1 Tercapai"
+            delta_color_status = "normal" # Panah hijau ke atas
         else:
-            delta_status = f"-Kurang {gap_toko_t1:,} Toko ke Tier 1"
-            delta_color_status = "normal" 
+            delta_status = f"-Kurang {gap_toko_t1:,} Toko"
+            delta_color_status = "normal" # Panah merah ke bawah
 
-        # --- 4 KARTU METRIK EKSEKUTIF BERBINGKAI ---
+        # --- 4 KARTU METRIK EKSEKUTIF BERBINGKAI & RAPI ---
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.metric(
-                label="Omset Bersih (Net)",
-                value=f"Rp {total_net_sales:,.0f}",
-                delta=delta_omset,
-                delta_color=delta_color_omset,
-                border=True
-            )
+            with st.container(border=True):
+                st.metric(
+                    label="Omset Bersih (Net)",
+                    value=f"Rp {total_net_sales:,.0f}",
+                    delta=delta_omset,
+                    delta_color=delta_color_omset
+                )
+                st.markdown(f"<div class='metric-subtext'>Bruto: <b>Rp {total_bruto:,.0f}</b></div>", unsafe_allow_html=True)
+
         with c2:
-            st.metric(
-                label="Toko Transaksi (EC)",
-                value=f"{total_ec:,} Toko",
-                delta=f"+{df['Faktur'].nunique():,} Faktur",
-                delta_color="normal",
-                border=True
-            )
+            with st.container(border=True):
+                st.metric(
+                    label="Toko Transaksi (EC)",
+                    value=f"{total_ec:,} Toko",
+                    delta=f"+{df['Faktur'].nunique():,} Faktur",
+                    delta_color="normal"
+                )
+                st.markdown(f"<div class='metric-subtext'>Total Transaksi Faktur Terbit</div>", unsafe_allow_html=True)
+
         with c3:
-            st.metric(
-                label="Toko Lolos MHS",
-                value=f"{total_lolos_mhs:,} Toko",
-                delta=delta_mhs,
-                delta_color=delta_color_mhs,
-                border=True
-            )
+            with st.container(border=True):
+                st.metric(
+                    label="Toko Lolos MHS",
+                    value=f"{total_lolos_mhs:,} Toko",
+                    delta=delta_mhs,
+                    delta_color=delta_color_mhs
+                )
+                st.markdown(f"<div class='metric-subtext'>Target Base: <b>{cb_standpro:,} Toko</b></div>", unsafe_allow_html=True)
+
         with c4:
-            st.metric(
-                label="Status Insentif",
-                value=tier_label,
-                delta=delta_status,
-                delta_color=delta_color_status,
-                border=True
-            )
+            with st.container(border=True):
+                st.metric(
+                    label="Status Insentif",
+                    value=tier_label,
+                    delta=delta_status,
+                    delta_color=delta_color_status
+                )
+                st.markdown(f"<div class='metric-subtext'>Target Min Tier 1: <b>{target_tier1:,} Toko</b></div>", unsafe_allow_html=True)
 
         st.markdown("---")
 

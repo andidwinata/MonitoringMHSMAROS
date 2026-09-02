@@ -212,7 +212,7 @@ if uploaded_lbp is not None:
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
         # --- TAMPILAN DASHBOARD ---
-        st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
+        st.title("📊 Monitoring by SS MAROS (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
         # --- LOGIKA DELTA TERSIMPLIFIKASI (RAPI & ANTI-NABRAK) ---

@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS Kustom untuk Tampilan & Spasi Rapih
+# CSS 
 st.markdown("""
     <style>
         [data-testid="stMetricValue"] {

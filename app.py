@@ -192,7 +192,7 @@ if uploaded_lbp is not None:
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
         # Header Utama
-        st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
+        st.title("📊 Monitoring Area & MHS SS MAROS (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
         is_lolos_tier = ach_cb_standpro >= 50.0

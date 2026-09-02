@@ -55,7 +55,7 @@ def parse_raw_lbp(uploaded_file):
 
 # --- SIDEBAR OPERASIONAL ---
 st.sidebar.title("⚙️ Pengaturan Operasional")
-st.sidebar.markdown("**Akses:** SS / RSM / GRSM")
+st.sidebar.markdown("**Akses:** SS / HOA")
 
 cb_standpro = st.sidebar.number_input(
     "Target Standpro (CB Area):",
@@ -179,7 +179,7 @@ if uploaded_lbp is not None:
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
         # --- TAMPILAN DASHBOARD ---
-        st.title("📊 Monitoring Operasional & Eksekutif Sales (SS / RSM / GRSM)")
+        st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
         # --- LOGIKA DELTA PANAH & PERSENTASE RETUR ---
@@ -187,24 +187,24 @@ if uploaded_lbp is not None:
 
         if total_retur > 0:
             delta_omset = f"-{retur_rate:.2f}% Retur (Bruto Rp {total_bruto:,.0f})"
-            delta_color_omset = "normal"  # Panah merah ke bawah
+            delta_color_omset = "normal"  
         else:
             delta_omset = f"+0% Retur (Bruto Rp {total_bruto:,.0f})"
             delta_color_omset = "normal"
 
         if is_lolos_tier:
             delta_mhs = f"+{ach_cb_standpro:.2f}% vs Standpro"
-            delta_color_mhs = "normal"   # Panah hijau ke atas
+            delta_color_mhs = "normal"   
         else:
             delta_mhs = f"-{ach_cb_standpro:.2f}% vs Standpro (Target 50%)"
-            delta_color_mhs = "normal"   # Panah merah ke bawah
+            delta_color_mhs = "normal"   
 
         if gap_toko_t1 == 0:
             delta_status = "+Target Tier 1 Tercapai"
-            delta_color_status = "normal" # Panah hijau ke atas
+            delta_color_status = "normal" 
         else:
             delta_status = f"-Kurang {gap_toko_t1:,} Toko ke Tier 1"
-            delta_color_status = "normal" # Panah merah ke bawah
+            delta_color_status = "normal" 
 
         # --- 4 KARTU METRIK EKSEKUTIF BERBINGKAI ---
         c1, c2, c3, c4 = st.columns(4)

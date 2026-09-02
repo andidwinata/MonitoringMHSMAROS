@@ -3,8 +3,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import io
-import matplotlib.pyplot as plt
-import matplotlib.table as tbl
 
 st.set_page_config(
     page_title="Monitoring Penjualan & Insentif MHS",
@@ -12,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS 
+# CSS Kustom untuk Tampilan & Spasi Rapih
 st.markdown("""
     <style>
         [data-testid="stMetricValue"] {
@@ -68,34 +66,6 @@ def convert_df_to_excel(df_dict):
             df_data.to_excel(writer, sheet_name=sheet_name, index=False)
     return output.getvalue()
 
-# Fungsi Konversi DataFrame ke Gambar (PNG)
-def convert_df_to_png(df_data, title="Laporan Tabel"):
-    fig, ax = plt.subplots(figsize=(10, max(2, len(df_data) * 0.4 + 1.5)))
-    ax.axis('off')
-    ax.axis('tight')
-    
-    # Render tabel dengan matplotlib
-    table_data = [df_data.columns.tolist()] + df_data.values.tolist()
-    the_table = ax.table(cellText=table_data, loc='center', cellLoc='center')
-    the_table.auto_set_font_size(False)
-    the_table.set_fontsize(9)
-    the_table.scale(1.2, 1.4)
-    
-    # Styling Header Tabel
-    for (row, col), cell in the_table.get_celld().items():
-        if row == 0:
-            cell.set_facecolor('#0284c7')
-            cell.set_text_props(weight='bold', color='white')
-        else:
-            cell.set_facecolor('#f8fafc' if row % 2 == 0 else '#ffffff')
-
-    plt.title(title, fontsize=12, weight='bold', pad=15)
-    
-    image_buffer = io.BytesIO()
-    plt.savefig(image_buffer, format='png', bbox_inches='tight', dpi=300)
-    plt.close(fig)
-    return image_buffer.getvalue()
-
 # Parser LBP
 def parse_raw_lbp(uploaded_file):
     if uploaded_file.name.endswith(('.txt', '.csv')):
@@ -120,7 +90,7 @@ def parse_raw_lbp(uploaded_file):
     return df
 
 # --- SIDEBAR OPERASIONAL ---
-st.sidebar.title("⚙️ Pengaturan KPI")
+st.sidebar.title("⚙️ Pengaturan Operasional")
 st.sidebar.markdown("**Akses:** SS / HOA MV42")
 
 cb_standpro = st.sidebar.number_input(
@@ -222,7 +192,7 @@ if uploaded_lbp is not None:
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
         # Header Utama
-        st.title("📊 Monitoring Area & MHS SS MAROS")
+        st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
         is_lolos_tier = ach_cb_standpro >= 50.0
@@ -327,15 +297,7 @@ if uploaded_lbp is not None:
 
             tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / Faktur']])
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
-
-            # Tombol Download Tabel Kinerja Salesman (XLSX & PNG)
-            d1, d2 = st.columns(2)
-            with d1:
-                excel_sales = convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales})
-                st.download_button("📥 Download Tabel Salesman (.xlsx)", data=excel_sales, file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            with d2:
-                png_sales = convert_df_to_png(tbl_sales, title="Tabel Rincian Kinerja Salesman")
-                st.download_button("📸 Download Tabel Salesman (.png)", data=png_sales, file_name="Kinerja_Salesman.png", mime="image/png")
+            st.download_button("📥 Download Tabel Salesman (.xlsx)", data=convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales}), file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
         # TAB 2: OMSET & WILAYAH
         with tab2:
@@ -352,12 +314,7 @@ if uploaded_lbp is not None:
                 
                 tbl_kab = beri_nomor_urut(kab_merge[['Kabupaten', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
                 st.dataframe(tbl_kab, use_container_width=True, hide_index=True)
-
-                d_k1, d_k2 = st.columns(2)
-                with d_k1:
-                    st.download_button("📥 Excel Kabupaten", data=convert_df_to_excel({'KABUPATEN': tbl_kab}), file_name="Omset_Kabupaten.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                with d_k2:
-                    st.download_button("📸 PNG Kabupaten", data=convert_df_to_png(tbl_kab, title="Penjualan per Kabupaten"), file_name="Omset_Kabupaten.png", mime="image/png")
+                st.download_button("📥 Download Excel Kabupaten", data=convert_df_to_excel({'KABUPATEN': tbl_kab}), file_name="Omset_Kabupaten.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
                 fig_kab = px.pie(kab_merge, names='Kabupaten', values='NET_AMOUNT', hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe, title="Porsi Omset per Kabupaten")
                 fig_kab.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
@@ -374,12 +331,7 @@ if uploaded_lbp is not None:
 
                 tbl_kec = beri_nomor_urut(kec_merge[['Kecamatan', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
                 st.dataframe(tbl_kec, use_container_width=True, hide_index=True)
-
-                d_kc1, d_kc2 = st.columns(2)
-                with d_kc1:
-                    st.download_button("📥 Excel Kecamatan", data=convert_df_to_excel({'KECAMATAN': tbl_kec}), file_name="Omset_Kecamatan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                with d_kc2:
-                    st.download_button("📸 PNG Kecamatan", data=convert_df_to_png(tbl_kec, title="Top 10 Kecamatan"), file_name="Omset_Kecamatan.png", mime="image/png")
+                st.download_button("📥 Download Excel Kecamatan", data=convert_df_to_excel({'KECAMATAN': tbl_kec}), file_name="Omset_Kecamatan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
                 fig_kec = px.bar(kec_merge.sort_values(by='NET_AMOUNT', ascending=True), x='NET_AMOUNT', y='Kecamatan', orientation='h', labels={'NET_AMOUNT': 'Omset Bersih (Rp)'}, color_discrete_sequence=['#0284c7'], title="Grafik Omset Top 10 Kecamatan")
                 fig_kec.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
@@ -397,12 +349,7 @@ if uploaded_lbp is not None:
                     top_sb['Kontribusi (%)'] = ((top_sb['NET_AMOUNT'] / total_net_sales) * 100).round(2)
                     tbl_sb = beri_nomor_urut(top_sb[['SUBBRANDNAME', 'Omset (Rp)', 'Kontribusi (%)']])
                     st.dataframe(tbl_sb, use_container_width=True, hide_index=True)
-
-                    ds1, ds2 = st.columns(2)
-                    with ds1:
-                        st.download_button("📥 Excel Subbrand", data=convert_df_to_excel({'SUBBRAND': tbl_sb}), file_name="Top_Subbrand.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    with ds2:
-                        st.download_button("📸 PNG Subbrand", data=convert_df_to_png(tbl_sb, title="Top 10 Subbrand"), file_name="Top_Subbrand.png", mime="image/png")
+                    st.download_button("📥 Download Excel Subbrand", data=convert_df_to_excel({'SUBBRAND': tbl_sb}), file_name="Top_Subbrand.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
                     fig_pie = px.pie(top_sb.head(6), names='SUBBRANDNAME', values='NET_AMOUNT', hole=0.45, color_discrete_sequence=px.colors.qualitative.Prism, title="Porsi 6 Brand Terbesar")
                     fig_pie.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10))
@@ -417,12 +364,7 @@ if uploaded_lbp is not None:
                     div_sales['Kontribusi (%)'] = ((div_sales['NET_AMOUNT'] / total_net_sales) * 100).round(2)
                     tbl_div = beri_nomor_urut(div_sales[['Divisi', 'Omset (Rp)', 'Kontribusi (%)']])
                     st.dataframe(tbl_div, use_container_width=True, hide_index=True)
-
-                    dd1, dd2 = st.columns(2)
-                    with dd1:
-                        st.download_button("📥 Excel Divisi", data=convert_df_to_excel({'DIVISI': tbl_div}), file_name="Omset_Divisi.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    with dd2:
-                        st.download_button("📸 PNG Divisi", data=convert_df_to_png(tbl_div, title="Penjualan per Divisi"), file_name="Omset_Divisi.png", mime="image/png")
+                    st.download_button("📥 Download Excel Divisi", data=convert_df_to_excel({'DIVISI': tbl_div}), file_name="Omset_Divisi.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
                     fig_div = px.bar(div_sales, x='Divisi', y='NET_AMOUNT', color='Divisi', color_discrete_sequence=px.colors.qualitative.Safe, title="Omset per Divisi")
                     fig_div.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10))
@@ -439,12 +381,7 @@ if uploaded_lbp is not None:
             
             tbl_channel = beri_nomor_urut(channel_merge[['Channel', 'Total_EC', 'Toko_Lolos', '% Lolos Channel', 'Omset (Rp)']])
             st.dataframe(tbl_channel, use_container_width=True, hide_index=True)
-
-            dc1, dc2 = st.columns(2)
-            with dc1:
-                st.download_button("📥 Excel Channel", data=convert_df_to_excel({'CHANNEL': tbl_channel}), file_name="Performa_Channel.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            with dc2:
-                st.download_button("📸 PNG Channel", data=convert_df_to_png(tbl_channel, title="Performa Channel"), file_name="Performa_Channel.png", mime="image/png")
+            st.download_button("📥 Download Excel Channel", data=convert_df_to_excel({'CHANNEL': tbl_channel}), file_name="Performa_Channel.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             fig_ch = px.bar(channel_merge, x='Channel', y='Total_EC', color='% Lolos Channel', labels={'Total_EC': 'Jumlah Toko Tercover', '% Lolos Channel': '% Lolos MHS'}, color_continuous_scale='Blues', title="Jumlah Toko Tercover & Kelulusan per Channel")
             fig_ch.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
@@ -464,12 +401,7 @@ if uploaded_lbp is not None:
             
             tbl_gap = beri_nomor_urut(gap_outlets[cols_gap])
             st.dataframe(tbl_gap, use_container_width=True, hide_index=True)
-
-            dg1, dg2 = st.columns(2)
-            with dg1:
-                st.download_button("📥 Excel Gap Toko", data=convert_df_to_excel({'GAP_TOKO': tbl_gap}), file_name="Gap_Toko_Action_Plan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            with dg2:
-                st.download_button("📸 PNG Gap Toko", data=convert_df_to_png(tbl_gap, title="Daftar Gap Toko"), file_name="Gap_Toko_Action_Plan.png", mime="image/png")
+            st.download_button("📥 Download Excel Gap Toko", data=convert_df_to_excel({'GAP_TOKO': tbl_gap}), file_name="Gap_Toko_Action_Plan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             st.markdown("---")
             st.markdown("### 🔍 **Pemeriksaan Detail SKU Toko**")
@@ -503,12 +435,7 @@ if uploaded_lbp is not None:
                 if len(sku_toko_masuk) > 0:
                     tbl_toko_masuk = beri_nomor_urut(sku_toko_masuk[['Pcode', 'Nama Produk', 'Total Qty Terbeli']])
                     st.dataframe(tbl_toko_masuk, use_container_width=True, hide_index=True)
-                    
-                    dt1, dt2 = st.columns(2)
-                    with dt1:
-                        st.download_button("📥 Excel Detail Toko", data=convert_df_to_excel({'DETAIL_TOKO': tbl_toko_masuk}), file_name=f"Detail_SKU_{selected_no_outlet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    with dt2:
-                        st.download_button("📸 PNG Detail Toko", data=convert_df_to_png(tbl_toko_masuk, title=f"SKU Masuk - {toko_info['Nama Outlet']}"), file_name=f"Detail_SKU_{selected_no_outlet}.png", mime="image/png")
+                    st.download_button("📥 Download Excel Detail Toko", data=convert_df_to_excel({'DETAIL_TOKO': tbl_toko_masuk}), file_name=f"Detail_SKU_{selected_no_outlet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 else:
                     st.info("Belum ada SKU yang terbeli di toko ini.")
             else:
@@ -516,7 +443,6 @@ if uploaded_lbp is not None:
 
             st.markdown("---")
 
-            # Tombol Unduh Laporan Master Komprehensif (.xlsx)
             buf = io.BytesIO()
             with pd.ExcelWriter(buf, engine='openpyxl') as writer:
                 display_sales.to_excel(writer, sheet_name='PERFORMA_SALESMAN', index=False)

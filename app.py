@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS 
+# CSS agar kartu metrik proporsional dan teks tidak terpotong
 st.markdown("""
     <style>
         [data-testid="stMetricValue"] {
@@ -49,6 +49,12 @@ DEFAULT_MHS_LIST = [
     '370177', '370178', '410584', '410882', '410991', '410992', '410803', '410804', '410805', '410806',
     '410807', '410808', '410809', '410810', '410884', '410885', '410886', '410887', '410888', '410889', '410890'
 ]
+
+# --- FUNGSI FORMAT PENOMORAN TABEL (MULAI DARI 1) ---
+def beri_nomor_urut(df_target):
+    df_res = df_target.copy().reset_index(drop=True)
+    df_res.insert(0, 'No', range(1, len(df_res) + 1))
+    return df_res
 
 # --- FUNGSI PARSER LBP TXT (MENGATASI TRAILING PIPE) ---
 def parse_raw_lbp(uploaded_file):
@@ -202,10 +208,9 @@ if uploaded_lbp is not None:
         st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
-        # --- LOGIKA DELTA TERSIMPLIFIKASI (TIDAK NABRAK) ---
+        # --- LOGIKA DELTA TERSIMPLIFIKASI (RAPI & ANTI-NABRAK) ---
         is_lolos_tier = ach_cb_standpro >= 50.0
 
-        # Delta Omset: Fokus ke persentase retur agar rapi
         if total_retur > 0:
             delta_omset = f"-{retur_rate:.2f}% Retur"
             delta_color_omset = "normal"  # Panah merah ke bawah
@@ -213,7 +218,6 @@ if uploaded_lbp is not None:
             delta_omset = "+0.00% Retur"
             delta_color_omset = "normal"
 
-        # Delta MHS
         if is_lolos_tier:
             delta_mhs = f"+{ach_cb_standpro:.2f}% (Lolos Target)"
             delta_color_mhs = "normal"   # Panah hijau ke atas
@@ -221,7 +225,6 @@ if uploaded_lbp is not None:
             delta_mhs = f"-{ach_cb_standpro:.2f}% (Target 50%)"
             delta_color_mhs = "normal"   # Panah merah ke bawah
 
-        # Delta Status Insentif
         if gap_toko_t1 == 0:
             delta_status = "+Tier 1 Tercapai"
             delta_color_status = "normal" # Panah hijau ke atas
@@ -229,7 +232,7 @@ if uploaded_lbp is not None:
             delta_status = f"-Kurang {gap_toko_t1:,} Toko"
             delta_color_status = "normal" # Panah merah ke bawah
 
-        # --- 4 KARTU METRIK EKSEKUTIF BERBINGKAI & RAPI ---
+        # --- 4 KARTU METRIK EKSEKUTIF BERBINGKAI ---
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             with st.container(border=True):
@@ -249,7 +252,7 @@ if uploaded_lbp is not None:
                     delta=f"+{df['Faktur'].nunique():,} Faktur",
                     delta_color="normal"
                 )
-                st.markdown(f"<div class='metric-subtext'>Total Transaksi Faktur Terbit</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-subtext'>Total Faktur Terbit</div>", unsafe_allow_html=True)
 
         with c3:
             with st.container(border=True):
@@ -347,10 +350,9 @@ if uploaded_lbp is not None:
             display_sales['Drop Size / Faktur'] = display_sales['Drop Size / Faktur'].apply(lambda x: f"Rp {x:,.0f}")
             display_sales['% Strike Rate MHS'] = display_sales['% Strike Rate MHS'].apply(lambda x: f"{x:.1f}%")
 
-            st.dataframe(
-                display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / Faktur']],
-                use_container_width=True
-            )
+            # Penomoran mulai dari 1
+            tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / Faktur']])
+            st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
 
         # TAB 2: OMSET & SEBARAN WILAYAH
         with tab2:
@@ -369,10 +371,9 @@ if uploaded_lbp is not None:
                 kab_merge['Strike Rate (%)'] = ((kab_merge['Toko_Lolos'] / kab_merge['Total_Toko']) * 100).round(1)
                 kab_merge['Omset (Rp)'] = kab_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                 
-                st.dataframe(
-                    kab_merge[['Kabupaten', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']],
-                    use_container_width=True
-                )
+                # Penomoran mulai dari 1
+                tbl_kab = beri_nomor_urut(kab_merge[['Kabupaten', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
+                st.dataframe(tbl_kab, use_container_width=True, hide_index=True)
 
                 fig_kab = px.pie(
                     kab_merge, 
@@ -397,10 +398,9 @@ if uploaded_lbp is not None:
                 kec_merge['Strike Rate (%)'] = ((kec_merge['Toko_Lolos'] / kec_merge['Total_Toko']) * 100).round(1)
                 kec_merge['Omset (Rp)'] = kec_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
 
-                st.dataframe(
-                    kec_merge[['Kecamatan', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']],
-                    use_container_width=True
-                )
+                # Penomoran mulai dari 1
+                tbl_kec = beri_nomor_urut(kec_merge[['Kecamatan', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
+                st.dataframe(tbl_kec, use_container_width=True, hide_index=True)
 
                 fig_kec = px.bar(
                     kec_merge.sort_values(by='NET_AMOUNT', ascending=True),
@@ -425,7 +425,10 @@ if uploaded_lbp is not None:
                 pasar_merge = pd.merge(pasar_val, pasar_out, on='Kode Pasar').sort_values(by='NET_AMOUNT', ascending=False).head(15)
                 pasar_merge['Omset Bersih (Rp)'] = pasar_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                 pasar_merge['Strike Rate (%)'] = ((pasar_merge['Toko_Lolos'] / pasar_merge['Toko_Aktif']) * 100).round(1)
-                st.dataframe(pasar_merge[['Kode Pasar', 'Omset Bersih (Rp)', 'Toko_Aktif', 'Toko_Lolos', 'Strike Rate (%)']], use_container_width=True)
+                
+                # Penomoran mulai dari 1
+                tbl_pasar = beri_nomor_urut(pasar_merge[['Kode Pasar', 'Omset Bersih (Rp)', 'Toko_Aktif', 'Toko_Lolos', 'Strike Rate (%)']])
+                st.dataframe(tbl_pasar, use_container_width=True, hide_index=True)
 
         # TAB 3: SUBBRAND & DIVISI
         with tab3:
@@ -438,7 +441,10 @@ if uploaded_lbp is not None:
                     top_sb = df.groupby('SUBBRANDNAME')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False).head(10)
                     top_sb['Omset (Rp)'] = top_sb['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                     top_sb['Kontribusi (%)'] = ((top_sb['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    st.dataframe(top_sb[['SUBBRANDNAME', 'Omset (Rp)', 'Kontribusi (%)']], use_container_width=True)
+                    
+                    # Penomoran mulai dari 1
+                    tbl_sb = beri_nomor_urut(top_sb[['SUBBRANDNAME', 'Omset (Rp)', 'Kontribusi (%)']])
+                    st.dataframe(tbl_sb, use_container_width=True, hide_index=True)
 
                     fig_pie = px.pie(
                         top_sb.head(6), 
@@ -458,7 +464,10 @@ if uploaded_lbp is not None:
                     div_sales['Divisi'] = "Divisi " + div_sales['Divisi'].astype(str)
                     div_sales['Omset (Rp)'] = div_sales['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                     div_sales['Kontribusi (%)'] = ((div_sales['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    st.dataframe(div_sales[['Divisi', 'Omset (Rp)', 'Kontribusi (%)']], use_container_width=True)
+                    
+                    # Penomoran mulai dari 1
+                    tbl_div = beri_nomor_urut(div_sales[['Divisi', 'Omset (Rp)', 'Kontribusi (%)']])
+                    st.dataframe(tbl_div, use_container_width=True, hide_index=True)
 
                     fig_div = px.bar(
                         div_sales, 
@@ -483,10 +492,9 @@ if uploaded_lbp is not None:
             channel_merge['% Lolos Channel'] = ((channel_merge['Toko_Lolos'] / channel_merge['Total_EC']) * 100).round(1)
             channel_merge['Omset (Rp)'] = channel_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
             
-            st.dataframe(
-                channel_merge[['Channel', 'Total_EC', 'Toko_Lolos', '% Lolos Channel', 'Omset (Rp)']],
-                use_container_width=True
-            )
+            # Penomoran mulai dari 1
+            tbl_channel = beri_nomor_urut(channel_merge[['Channel', 'Total_EC', 'Toko_Lolos', '% Lolos Channel', 'Omset (Rp)']])
+            st.dataframe(tbl_channel, use_container_width=True, hide_index=True)
 
             fig_ch = px.bar(
                 channel_merge,
@@ -511,7 +519,10 @@ if uploaded_lbp is not None:
 
             st.write(f"Ditemukan **{len(df_gap):,}** toko yang belum lolos:")
             cols_gap = ['No Outlet', 'Nama Outlet', 'Salesman', 'Channel', 'Kabupaten', 'Target SKU', 'Realisasi SKU Sold', 'Gap SKU']
-            st.dataframe(df_gap[cols_gap], use_container_width=True)
+            
+            # Penomoran mulai dari 1
+            tbl_gap = beri_nomor_urut(df_gap[cols_gap])
+            st.dataframe(tbl_gap, use_container_width=True, hide_index=True)
 
             # Export All Data
             buf = io.BytesIO()

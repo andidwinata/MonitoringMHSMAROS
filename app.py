@@ -6,121 +6,116 @@ import io
 
 # 1. Konfigurasi Halaman Web
 st.set_page_config(
-    page_title="Portal Monitoring Penjualan & Insentif MHS",
-    page_icon="📊",
+    page_title="Monitoring Penjualan & Insentif MHS",
+    page_icon="📋",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 2. Desain Tampilan Terang & Bersih (Clean Corporate Theme)
+# 2. Desain Warna Teduh & Lembut (Eye-Friendly Soft Theme)
 st.markdown("""
     <style>
-        /* Latar Belakang & Font */
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
         * {
-            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', sans-serif;
         }
         
-        /* Background Utama Putih Lembut */
+        /* Background Utama: Abu-abu Sangat Lembut */
         .stApp {
-            background-color: #f8fafc;
-            color: #1e293b;
+            background-color: #f1f5f9;
+            color: #334155;
         }
         
         /* Container Spacing */
         .block-container {
-            padding-top: 1.6rem;
+            padding-top: 1.5rem;
             padding-bottom: 2.5rem;
             padding-left: 2rem;
             padding-right: 2rem;
         }
         
         /* Header Dashboard */
-        .corp-header {
+        .soft-header {
             background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 18px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .corp-title {
-            font-size: 1.4rem;
-            font-weight: 800;
-            color: #0f172a;
+        .soft-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
             margin: 0;
-            letter-spacing: -0.02em;
         }
-        .corp-subtitle {
-            font-size: 0.85rem;
+        .soft-subtitle {
+            font-size: 0.82rem;
             color: #64748b;
-            margin-top: 4px;
+            margin-top: 3px;
         }
         
-        /* Kartu Metrik (KPI Tiles) */
-        .metric-card {
+        /* Kartu Metrik Lembut (KPI Cards) */
+        .kpi-box {
             background-color: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 18px 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-            margin-bottom: 12px;
-            border-top: 4px solid #0284c7;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin-bottom: 10px;
         }
-        .metric-title {
-            font-size: 0.78rem;
+        .kpi-title {
+            font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.04em;
             color: #64748b;
-            font-weight: 700;
-            margin-bottom: 6px;
+            font-weight: 600;
+            margin-bottom: 4px;
         }
-        .metric-value {
-            font-size: 1.6rem;
-            font-weight: 800;
+        .kpi-value {
+            font-size: 1.45rem;
+            font-weight: 700;
             color: #0f172a;
             line-height: 1.2;
             margin-bottom: 4px;
         }
-        .metric-desc {
-            font-size: 0.8rem;
+        .kpi-sub {
+            font-size: 0.78rem;
             color: #64748b;
         }
         
-        /* Status Badge Insentif */
-        .badge-status {
-            padding: 6px 14px;
-            border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 700;
+        /* Status Badge Pastel (Tidak Terang Menyolok) */
+        .badge-soft {
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
             display: inline-block;
         }
-        .badge-green { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-        .badge-yellow { background-color: #fef9c3; color: #a16207; border: 1px solid #fde047; }
-        .badge-red { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+        .badge-green { background-color: #d1fae5; color: #065f46; }
+        .badge-amber { background-color: #fef3c7; color: #92400e; }
+        .badge-rose  { background-color: #ffe4e6; color: #9f1239; }
         
-        /* Tab Navigasi */
+        /* Tab Navigasi Minimalis */
         .stTabs [data-baseweb="tab-list"] {
-            gap: 12px;
+            gap: 10px;
             background-color: transparent;
-            border-bottom: 2px solid #e2e8f0;
+            border-bottom: 1px solid #cbd5e1;
         }
         .stTabs [data-baseweb="tab"] {
-            font-size: 0.9rem;
+            font-size: 0.86rem;
             font-weight: 600;
             color: #64748b;
-            padding: 10px 18px;
+            padding: 8px 16px;
             background-color: transparent;
+            border-radius: 6px 6px 0 0;
         }
         .stTabs [aria-selected="true"] {
-            color: #0284c7 !important;
-            border-bottom: 2px solid #0284c7 !important;
+            color: #1e293b !important;
+            border-bottom: 2px solid #475569 !important;
             background-color: #ffffff;
-            border-radius: 8px 8px 0 0;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -168,28 +163,28 @@ def parse_raw_lbp(uploaded_file):
 
 # --- SIDEBAR OPERASIONAL ---
 with st.sidebar:
-    st.markdown("### ⚙️ **Pengaturan Data**")
-    st.caption("Monitoring Operasional Sales & Insentif")
+    st.markdown("### **Panel Data**")
+    st.caption("Monitoring Kinerja & Insentif Tim")
     st.markdown("---")
     
     cb_standpro = st.number_input(
-        "Target Base CB Standpro:",
+        "Target Standpro (CB Area):",
         min_value=1,
         value=1090,
         step=50,
-        help="Target dasar toko aktif (CB) untuk menghitung % pencapaian dan tier insentif."
+        help="Target dasar toko aktif (CB) untuk mengukur persentase pencapaian."
     )
     
-    uploaded_lbp = st.file_uploader("Upload LBP Mentah (.txt / .csv / .xlsx):", type=['txt', 'csv', 'xlsx'])
-    uploaded_mhs = st.file_uploader("Upload Master MHS Tambahan (Opsional):", type=['csv', 'xlsx'])
+    uploaded_lbp = st.file_uploader("Upload LBP (.txt / .csv / .xlsx):", type=['txt', 'csv', 'xlsx'])
+    uploaded_mhs = st.file_uploader("Upload Master SKU MHS (Opsional):", type=['csv', 'xlsx'])
     
     st.markdown("---")
-    st.caption("Sistem Analitik LBP Distribusi FMCG")
+    st.caption("Sistem Analitik Distribusi")
 
-# --- ENGINE PEMROSESAN UTAMA ---
+# --- PROSES PERHITUNGAN DATA ---
 if uploaded_lbp is not None:
     try:
-        with st.spinner("Sedang memproses data dan menghitung seluruh metriks..."):
+        with st.spinner("Memuat dan menghitung data..."):
             df_raw = parse_raw_lbp(uploaded_lbp)
 
             # Master MHS
@@ -199,7 +194,7 @@ if uploaded_lbp is not None:
             else:
                 mhs_pcode_set = set(DEFAULT_MHS_LIST)
 
-            # Standardisasi Tipe Data
+            # Normalisasi
             df_raw['Salesman'] = df_raw['Salesman'].astype(str).str.strip()
             df_raw['Pcode_Str'] = df_raw['Pcode'].astype(str).str.strip()
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
@@ -217,21 +212,21 @@ if uploaded_lbp is not None:
 
         # Filter Salesman Tim SPV di Sidebar
         with st.sidebar:
-            st.markdown("### 👥 **Filter Tim Salesman (SPV)**")
+            st.markdown("### 👥 **Pilih Tim Salesman**")
             select_all = st.checkbox("Pilih Semua Salesman (Total Area)", value=True)
             
             if select_all:
-                selected_salesmen = st.multiselect("Daftar Salesman Terpilih:", options=all_salesmen, default=all_salesmen)
+                selected_salesmen = st.multiselect("Salesman Terpilih:", options=all_salesmen, default=all_salesmen)
             else:
-                selected_salesmen = st.multiselect("Daftar Salesman Terpilih:", options=all_salesmen, default=all_salesmen[:3] if len(all_salesmen) >= 3 else all_salesmen)
+                selected_salesmen = st.multiselect("Salesman Terpilih:", options=all_salesmen, default=all_salesmen[:3] if len(all_salesmen) >= 3 else all_salesmen)
 
         if not selected_salesmen:
-            st.info("Pilih minimal 1 salesman pada menu sebelah kiri untuk menampilkan data.")
+            st.info("Silakan centang atau pilih minimal 1 salesman di panel kiri.")
             st.stop()
 
         df = df_raw[df_raw['Salesman'].isin(selected_salesmen)].copy()
 
-        # Agregasi Must Have SKU (Distinct SKU per toko, Net Qty > 0)
+        # Agregasi SKU MHS (Varian Unik Net Qty > 0)
         df_mhs_tx = df[df['Pcode_Str'].isin(mhs_pcode_set)].copy()
         agg_sku = df_mhs_tx.groupby(['No Outlet', 'Pcode_Str'])['NET_QTY'].sum().reset_index()
         valid_mhs = agg_sku[agg_sku['NET_QTY'] > 0]
@@ -257,121 +252,121 @@ if uploaded_lbp is not None:
         total_retur = df['RETUR_AMOUNT'].sum()
         retur_rate = (total_retur / total_bruto * 100) if total_bruto > 0 else 0
 
-        # Penentuan Tier Insentif
+        # Tier Insentif (Warna Lembut)
         if ach_cb_standpro >= 80: 
-            tier_label = "Tier 4 (≥ 80%) - Insentif Maksimal"
+            tier_label = "Tier 4 (≥ 80%)"
             badge_class = "badge-green"
-            gauge_color = "#16a34a"
+            gauge_bar_color = "#059669"
         elif ach_cb_standpro >= 70: 
             tier_label = "Tier 3 (70% - 79.9%)"
             badge_class = "badge-green"
-            gauge_color = "#0284c7"
+            gauge_bar_color = "#0284c7"
         elif ach_cb_standpro >= 60: 
             tier_label = "Tier 2 (60% - 69.9%)"
-            badge_class = "badge-yellow"
-            gauge_color = "#d97706"
+            badge_class = "badge-amber"
+            gauge_bar_color = "#d97706"
         elif ach_cb_standpro >= 50: 
             tier_label = "Tier 1 (50% - 59.9%)"
-            badge_class = "badge-yellow"
-            gauge_color = "#eab308"
+            badge_class = "badge-amber"
+            gauge_bar_color = "#ca8a04"
         else: 
-            tier_label = "Belum Masuk Tier (< 50%)"
-            badge_class = "badge-red"
-            gauge_color = "#dc2626"
+            tier_label = "Belum Lolos (< 50%)"
+            badge_class = "badge-rose"
+            gauge_bar_color = "#be123c"
 
         target_tier1 = int(cb_standpro * 0.5)
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
         # --- HEADER UTAMA ---
         st.markdown(f"""
-        <div class="corp-header">
+        <div class="soft-header">
             <div>
-                <h1 class="corp-title">Laporan Monitoring Kinerja Penjualan & Insentif</h1>
-                <p class="corp-subtitle">Filter Tim: <b>{len(selected_salesmen)} Salesman Aktif</b> &bull; Target CB Standpro: <b>{cb_standpro:,} Toko</b></p>
+                <h2 class="soft-title">Monitoring Penjualan & Insentif MHS</h2>
+                <div class="soft-subtitle">Tim: <b>{len(selected_salesmen)} Salesman Terpilih</b> &bull; Target CB Standpro: <b>{cb_standpro:,} Toko</b></div>
             </div>
             <div>
-                <span class="badge-status {badge_class}">{tier_label}</span>
+                <span class="badge-soft {badge_class}">{tier_label}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # --- 4 KARTU METRIK UTAMA ---
+        # --- KARTU METRIK UTAMA (WARNA NETRAL & TEDUH) ---
         k1, k2, k3, k4 = st.columns(4)
         with k1:
             st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-title">Total Omset Bersih</div>
-                <div class="metric-value">Rp {total_net_sales:,.0f}</div>
-                <div class="metric-desc">Bruto: Rp {total_bruto:,.0f} | Retur: {retur_rate:.2f}%</div>
+            <div class="kpi-box">
+                <div class="kpi-title">Omset Bersih (Net Sales)</div>
+                <div class="kpi-value">Rp {total_net_sales:,.0f}</div>
+                <div class="kpi-sub">Bruto: Rp {total_bruto:,.0f} &bull; Retur: {retur_rate:.1f}%</div>
             </div>
             """, unsafe_allow_html=True)
         with k2:
             st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-title">Toko Tercover (EC)</div>
-                <div class="metric-value">{total_ec:,} <span style="font-size:1rem; color:#64748b; font-weight:600;">Toko</span></div>
-                <div class="metric-desc">Dari {df['Faktur'].nunique():,} Faktur Penjualan</div>
+            <div class="kpi-box">
+                <div class="kpi-title">Toko Tercover (EC)</div>
+                <div class="kpi-value">{total_ec:,} <span style="font-size:0.95rem; color:#64748b; font-weight:500;">Toko</span></div>
+                <div class="kpi-sub">Total Faktur: {df['Faktur'].nunique():,} Transaksi</div>
             </div>
             """, unsafe_allow_html=True)
         with k3:
             st.markdown(f"""
-            <div class="metric-card" style="border-top-color: #0284c7;">
-                <div class="metric-title">Toko Lolos Target MHS</div>
-                <div class="metric-value" style="color:#0284c7;">{total_lolos_mhs:,} <span style="font-size:1rem; color:#64748b; font-weight:600;">Toko</span></div>
-                <div class="metric-desc">Pencapaian: <b>{ach_cb_standpro:.2f}%</b> vs Standpro</div>
+            <div class="kpi-box">
+                <div class="kpi-title">Toko Lolos Target MHS</div>
+                <div class="kpi-value" style="color: #0369a1;">{total_lolos_mhs:,} <span style="font-size:0.95rem; color:#64748b; font-weight:500;">Toko</span></div>
+                <div class="kpi-sub">Pencapaian: <b>{ach_cb_standpro:.2f}%</b> vs Standpro</div>
             </div>
             """, unsafe_allow_html=True)
         with k4:
             st.markdown(f"""
-            <div class="metric-card" style="border-top-color: {'#dc2626' if gap_toko_t1 > 0 else '#16a34a'};">
-                <div class="metric-title">Kekurangan ke Tier 1 (50%)</div>
-                <div class="metric-value" style="color: {'#dc2626' if gap_toko_t1 > 0 else '#16a34a'};">
-                    {f"{gap_toko_t1:,} Toko" if gap_toko_t1 > 0 else "Tercapai"}
+            <div class="kpi-box">
+                <div class="kpi-title">Kekurangan ke Tier 1 (50%)</div>
+                <div class="kpi-value" style="color: {'#be123c' if gap_toko_t1 > 0 else '#047857'};">
+                    {f"{gap_toko_t1:,} Toko" if gap_toko_t1 > 0 else "Sudah Tercapai"}
                 </div>
-                <div class="metric-desc">Target Minimal Tier 1: {target_tier1:,} Toko</div>
+                <div class="kpi-sub">Target Minimal: {target_tier1:,} Toko Lolos</div>
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
 
-        # --- TAB NAVIGASI ---
+        # --- TAB KONTEN ---
         t1, t2, t3, t4, t5 = st.tabs([
-            "📊 Kinerja Tim Salesman", 
-            "📍 Omset & Sebaran Wilayah",
-            "📦 Kontribusi Produk & Divisi", 
-            "🏬 Analisis Tipe Toko (Channel)", 
-            "🎯 Daftar Toko Belum Capai Target"
+            "Kinerja Salesman", 
+            "Omset & Sebaran Wilayah",
+            "Produk & Divisi", 
+            "Tipe Toko (Channel)", 
+            "Daftar Toko Belum Capai Target"
         ])
 
         # TAB 1: KINERJA SALESMAN
         with t1:
             cg, cb = st.columns([1, 2])
             with cg:
-                st.markdown("##### 🎯 Pencapaian vs Target CB")
+                st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Pencapaian Insentif vs Target Standpro</p>", unsafe_allow_html=True)
                 fig_g = go.Figure(go.Indicator(
                     mode = "gauge+number",
                     value = ach_cb_standpro,
-                    number = {'suffix': "%", 'font': {'size': 30, 'color': '#0f172a'}},
+                    number = {'suffix': "%", 'font': {'size': 26, 'color': '#1e293b'}},
                     gauge = {
-                        'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#94a3b8"},
-                        'bar': {'color': gauge_color},
+                        'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#cbd5e1"},
+                        'bar': {'color': gauge_bar_color},
                         'bgcolor': "#ffffff",
                         'borderwidth': 1,
-                        'bordercolor': "#e2e8f0",
+                        'bordercolor': "#cbd5e1",
                         'steps': [
-                            {'range': [0, 50], 'color': "#fee2e2"},
-                            {'range': [50, 70], 'color': "#fef3c7"},
-                            {'range': [70, 80], 'color': "#e0f2fe"},
-                            {'range': [80, 100], 'color': "#dcfce7"}
+                            {'range': [0, 50], 'color': "#f1f5f9"},
+                            {'range': [50, 70], 'color': "#e2e8f0"},
+                            {'range': [70, 80], 'color': "#cbd5e1"},
+                            {'range': [80, 100], 'color': "#94a3b8"}
                         ],
-                        'threshold': {'line': {'color': "#0f172a", 'width': 3}, 'thickness': 0.75, 'value': 50}
+                        'threshold': {'line': {'color': "#334155", 'width': 2}, 'thickness': 0.7, 'value': 50}
                     }
                 ))
-                fig_g.update_layout(height=260, margin=dict(l=15, r=15, t=10, b=10), paper_bgcolor="#ffffff")
+                fig_g.update_layout(height=230, margin=dict(l=15, r=15, t=5, b=5), paper_bgcolor="#ffffff")
                 st.plotly_chart(fig_g, use_container_width=True)
 
             with cb:
-                st.markdown("##### 👥 Jumlah Toko Tercover vs Toko Lolos MHS")
+                st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Perbandingan Toko Tercover (EC) vs Toko Lolos MHS</p>", unsafe_allow_html=True)
                 chart_df = calc_toko.groupby('Salesman').agg(
                     Covered=('No Outlet', 'count'),
                     Lolos=('Status Lolos', 'sum')
@@ -379,10 +374,10 @@ if uploaded_lbp is not None:
                 
                 fig_bar = go.Figure()
                 fig_bar.add_trace(go.Bar(name='Toko Tercover (EC)', x=chart_df['Salesman'], y=chart_df['Covered'], marker_color='#94a3b8'))
-                fig_bar.add_trace(go.Bar(name='Toko Lolos MHS', x=chart_df['Salesman'], y=chart_df['Lolos'], marker_color='#0284c7'))
+                fig_bar.add_trace(go.Bar(name='Toko Lolos MHS', x=chart_df['Salesman'], y=chart_df['Lolos'], marker_color='#3b82f6'))
                 fig_bar.update_layout(
-                    height=260,
-                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=230,
+                    margin=dict(l=5, r=5, t=5, b=5),
                     barmode='group',
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                     paper_bgcolor="#ffffff",
@@ -391,7 +386,7 @@ if uploaded_lbp is not None:
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
 
-            st.markdown("##### 📋 Tabel Rekap Kinerja Salesman")
+            st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569; margin-top: 10px;'>Rincian Kinerja Tim Salesman</p>", unsafe_allow_html=True)
             sales_val = df.groupby(['Kode Sales', 'Salesman']).agg(
                 Net_Sales=('NET_AMOUNT', 'sum'),
                 Total_Faktur=('Faktur', 'nunique')
@@ -418,13 +413,12 @@ if uploaded_lbp is not None:
                 use_container_width=True
             )
 
-        # TAB 2: OMSET & SEBARAN WILAYAH (LENGKAP)
+        # TAB 2: OMSET & SEBARAN WILAYAH
         with t2:
-            st.markdown("##### 📍 Analisis Penjualan Berdasarkan Wilayah & Rayon")
             w1, w2 = st.columns(2)
             
             with w1:
-                st.markdown("**1. Omset & Toko per Kabupaten:**")
+                st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Omset & Pemerataan per Kabupaten</p>", unsafe_allow_html=True)
                 kab_val = df.groupby('Kabupaten')['NET_AMOUNT'].sum().reset_index()
                 kab_out = calc_toko.groupby('Kabupaten').agg(
                     Total_Toko=('No Outlet', 'count'),
@@ -440,20 +434,19 @@ if uploaded_lbp is not None:
                     use_container_width=True
                 )
                 
-                # Visualisasi Donut Kabupaten
+                # Visualisasi Donut Kabupaten Lembut
                 fig_kab = px.pie(
                     kab_merge, 
                     names='Kabupaten', 
                     values='NET_AMOUNT', 
                     hole=0.45,
-                    color_discrete_sequence=px.colors.qualitative.Safe,
-                    title="Porsi Omset per Kabupaten"
+                    color_discrete_sequence=['#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0']
                 )
-                fig_kab.update_layout(height=280, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor="#ffffff")
+                fig_kab.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="#ffffff")
                 st.plotly_chart(fig_kab, use_container_width=True)
 
             with w2:
-                st.markdown("**2. Top 10 Kecamatan dengan Penjualan Tertinggi:**")
+                st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Top 10 Kecamatan berdasarkan Penjualan</p>", unsafe_allow_html=True)
                 kec_val = df.groupby('Kecamatan')['NET_AMOUNT'].sum().reset_index()
                 kec_out = calc_toko.groupby('Kecamatan').agg(
                     Total_Toko=('No Outlet', 'count'),
@@ -469,20 +462,18 @@ if uploaded_lbp is not None:
                     use_container_width=True
                 )
                 
-                # Bar Chart Kecamatan
+                # Bar Chart Kecamatan Lembut
                 fig_kec = px.bar(
                     kec_merge, 
                     x='Kecamatan', 
                     y='NET_AMOUNT',
-                    labels={'NET_AMOUNT': 'Omset Bersih (Rp)'},
-                    color_discrete_sequence=['#0284c7'],
-                    title="Grafik Omset Top 10 Kecamatan"
+                    labels={'NET_AMOUNT': 'Omset (Rp)'},
+                    color_discrete_sequence=['#475569']
                 )
-                fig_kec.update_layout(height=280, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor="#ffffff", plot_bgcolor="#ffffff")
+                fig_kec.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", yaxis=dict(gridcolor="#f1f5f9"))
                 st.plotly_chart(fig_kec, use_container_width=True)
 
-            st.markdown("---")
-            st.markdown("**3. Sebaran Penjualan per Pasar / Rayon:**")
+            st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569; margin-top:10px;'>Sebaran Penjualan per Pasar / Rayon</p>", unsafe_allow_html=True)
             if 'Kode Pasar' in df.columns:
                 pasar_val = df.groupby('Kode Pasar')['NET_AMOUNT'].sum().reset_index()
                 pasar_out = calc_toko.groupby('Kode Pasar').agg(
@@ -498,7 +489,7 @@ if uploaded_lbp is not None:
         with t3:
             p1, p2 = st.columns(2)
             with p1:
-                st.markdown("##### 📦 Top 10 Subbrand berdasarkan Omset")
+                st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Top 10 Subbrand berdasarkan Omset</p>", unsafe_allow_html=True)
                 if 'SUBBRANDNAME' in df.columns:
                     top_sb = df.groupby('SUBBRANDNAME')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False).head(10)
                     top_sb['Omset (Rp)'] = top_sb['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
@@ -509,15 +500,14 @@ if uploaded_lbp is not None:
                         top_sb.head(6), 
                         names='SUBBRANDNAME', 
                         values='NET_AMOUNT', 
-                        hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Prism,
-                        title="Porsi 6 Brand Terbesar"
+                        hole=0.45,
+                        color_discrete_sequence=['#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0']
                     )
-                    fig_sb.update_layout(height=260, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor="#ffffff")
+                    fig_sb.update_layout(height=250, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="#ffffff")
                     st.plotly_chart(fig_sb, use_container_width=True)
 
             with p2:
-                st.markdown("##### 🏢 Penjualan per Divisi")
+                st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Penjualan Berdasarkan Divisi</p>", unsafe_allow_html=True)
                 if 'Divisi' in df.columns:
                     div_df = df.groupby('Divisi')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False)
                     div_df['Divisi'] = "Divisi " + div_df['Divisi'].astype(str)
@@ -528,17 +518,15 @@ if uploaded_lbp is not None:
                     fig_d = px.bar(
                         div_df, 
                         x='Divisi', 
-                        y='NET_AMOUNT', 
-                        color='Divisi',
-                        color_discrete_sequence=px.colors.qualitative.Safe,
-                        title="Omset per Divisi"
+                        y='NET_AMOUNT',
+                        color_discrete_sequence=['#475569']
                     )
-                    fig_d.update_layout(height=260, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor="#ffffff", plot_bgcolor="#ffffff")
+                    fig_d.update_layout(height=250, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", yaxis=dict(gridcolor="#f1f5f9"))
                     st.plotly_chart(fig_d, use_container_width=True)
 
         # TAB 4: CHANNEL MIX
         with t4:
-            st.markdown("##### 🏬 Performa Penjualan Berdasarkan Channel (Tipe Toko)")
+            st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Performa Penjualan Berdasarkan Channel Toko</p>", unsafe_allow_html=True)
             ch_val = df.groupby('Channel')['NET_AMOUNT'].sum().reset_index()
             ch_out = calc_toko.groupby('Channel').agg(
                 Total_Toko=('No Outlet', 'count'),
@@ -555,13 +543,13 @@ if uploaded_lbp is not None:
 
         # TAB 5: ACTION PLAN TOKO BELUM CAPAI TARGET
         with t5:
-            st.markdown("##### 🎯 Prioritas Kunjungan: Toko yang Belum Capai Target SKU")
+            st.markdown("<p style='font-size:0.85rem; font-weight:600; color:#475569;'>Daftar Toko Prioritas Dorongan SKU</p>", unsafe_allow_html=True)
             pilih_sales = st.selectbox("Pilih Salesman:", ['SEMUA TIM SPV'] + selected_salesmen)
             
             df_action = calc_toko if pilih_sales == 'SEMUA TIM SPV' else calc_toko[calc_toko['Salesman'] == pilih_sales]
             gap_outlets = df_action[df_action['Status Lolos'] == 0].sort_values(by=['Gap SKU', 'Realisasi SKU Sold'], ascending=[True, False])
             
-            st.write(f"Ditemukan **{len(gap_outlets):,}** toko yang tinggal butuh dorongan SKU tambahan:")
+            st.write(f"Menampilkan **{len(gap_outlets):,}** toko yang belum lolos target:")
             cols_view = ['No Outlet', 'Nama Outlet', 'Salesman', 'Channel', 'Kabupaten', 'Target SKU', 'Realisasi SKU Sold', 'Gap SKU']
             st.dataframe(gap_outlets[cols_view], use_container_width=True)
 
@@ -581,6 +569,6 @@ if uploaded_lbp is not None:
             )
 
     except Exception as e:
-        st.error(f"Gagal memproses file LBP: {str(e)}")
+        st.error(f"Gagal membaca file: {str(e)}")
 else:
-    st.info("👈 Silakan upload file data mentah **LBP.txt** pada panel sebelah kiri untuk menampilkan dashboard laporan.")
+    st.info("👈 Silakan upload file **LBP.txt** pada panel sebelah kiri untuk memproses dashboard.")

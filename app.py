@@ -114,6 +114,18 @@ if uploaded_lbp is not None:
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
             df_raw['AMOUNT'] = pd.to_numeric(df_raw['AMOUNT'], errors='coerce').fillna(0)
 
+            # Deteksi Kolom Tanggal (biasanya bernama 'Tanggal', 'Tgl', atau 'Date')
+            date_col = None
+            for col in ['Tanggal', 'Tgl', 'Date', 'TRANS_DATE', 'TANGGAL']:
+                if col in df_raw.columns:
+                    date_col = col
+                    break
+
+            if date_col:
+                df_raw['Parsed_Date'] = pd.to_datetime(df_raw[date_col], errors='coerce')
+            else:
+                df_raw['Parsed_Date'] = pd.NaT
+
             if 'Kabupaten' not in df_raw.columns: df_raw['Kabupaten'] = '-'
             else: df_raw['Kabupaten'] = df_raw['Kabupaten'].fillna('-').astype(str).str.strip()
 
@@ -129,11 +141,27 @@ if uploaded_lbp is not None:
             df_raw['RETUR_AMOUNT'] = df_raw['AMOUNT'].where(is_retur, 0)
             df_raw['BRUTO_AMOUNT'] = df_raw['AMOUNT'].where(~is_retur, 0)
 
-            all_salesmen = sorted(df_raw['Salesman'].dropna().unique().tolist())
-
+        # --- SIDEBAR FILTER PERIODE & SALESMAN ---
         with st.sidebar:
             st.markdown("---")
+            st.markdown("### 📅 **Filter Periode Transaksi**")
+            
+            if date_col and df_raw['Parsed_Date'].notna().any():
+                min_dt = df_raw['Parsed_Date'].min().date()
+                max_dt = df_raw['Parsed_Date'].max().date()
+                
+                start_date = st.date_input("Dari Tanggal:", value=min_dt, min_value=min_dt, max_value=max_dt)
+                end_date = st.date_input("Sampai Tanggal:", value=max_dt, min_value=min_dt, max_value=max_dt)
+                
+                # Filter berdasarkan tanggal
+                df_filtered_date = df_raw[(df_raw['Parsed_Date'].dt.date >= start_date) & (df_raw['Parsed_Date'].dt.date <= end_date)].copy()
+            else:
+                st.info("Kolom tanggal transaksi tidak terdeteksi otomatis. Menampilkan seluruh data.")
+                df_filtered_date = df_raw.copy()
+
+            st.markdown("---")
             st.markdown("### 👥 **Pilih Salesman (Tim SS)**")
+            all_salesmen = sorted(df_filtered_date['Salesman'].dropna().unique().tolist())
             select_all = st.checkbox("Pilih Semua Salesman (Total Area)", value=True)
             
             if select_all:
@@ -145,7 +173,7 @@ if uploaded_lbp is not None:
             st.warning("Silakan pilih minimal 1 salesman pada menu di sebelah kiri.")
             st.stop()
 
-        df = df_raw[df_raw['Salesman'].isin(selected_salesmen)].copy()
+        df = df_filtered_date[df_filtered_date['Salesman'].isin(selected_salesmen)].copy()
 
         base_cols = ['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Kabupaten', 'Kecamatan', 'Kode Pasar']
         cols_exist = [c for c in base_cols if c in df.columns]
@@ -192,7 +220,7 @@ if uploaded_lbp is not None:
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
         # Header Utama
-        st.title("📊 Monitoring Area & MHS SS MAROS (SS / HOA MV42)")
+        st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
         is_lolos_tier = ach_cb_standpro >= 50.0
@@ -299,7 +327,7 @@ if uploaded_lbp is not None:
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Tabel Salesman (.xlsx)", data=convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales}), file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-        # TAB 2: OMSET & WILAYAH (TERMASUK OMSET BY PASAR)
+        # TAB 2: OMSET & WILAYAH (TERMASUK PASAR)
         with tab2:
             st.subheader("Analisis Penjualan Berdasarkan Wilayah & Pasar")
             col_kab, col_kec = st.columns(2)
@@ -337,10 +365,10 @@ if uploaded_lbp is not None:
                 fig_kec.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
                 st.plotly_chart(fig_kec, use_container_width=True)
 
-            # TAMBAHAN SECTION: OMSET BERDASARKAN PASAR / RAYON
+            # OMSET BERDASARKAN PASAR / RAYON
             if 'Kode Pasar' in df.columns and (df['Kode Pasar'] != '-').any():
                 st.markdown("---")
-                st.markdown("#### 🛒 Analisis Omset Berdasarkan Pasar / Rayon")
+                st.markdown("#### 🛒 Analisis Omset Berdasarkan Kode Pasar / Rayon")
                 pasar_val = df.groupby('Kode Pasar')['NET_AMOUNT'].sum().reset_index()
                 pasar_out = calc_toko.groupby('Kode Pasar').agg(
                     Total_Toko=('No Outlet', 'count'),

@@ -114,17 +114,15 @@ if uploaded_lbp is not None:
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
             df_raw['AMOUNT'] = pd.to_numeric(df_raw['AMOUNT'], errors='coerce').fillna(0)
 
-            # Deteksi Kolom Tanggal (biasanya bernama 'Tanggal', 'Tgl', atau 'Date')
-            date_col = None
-            for col in ['Tanggal', 'Tgl', 'Date', 'TRANS_DATE', 'TANGGAL']:
+            # Deteksi Kolom Periode secara otomatis
+            periode_col = None
+            for col in ['Periode', 'PERIODE', 'Period', 'PERIOD']:
                 if col in df_raw.columns:
-                    date_col = col
+                    periode_col = col
                     break
 
-            if date_col:
-                df_raw['Parsed_Date'] = pd.to_datetime(df_raw[date_col], errors='coerce')
-            else:
-                df_raw['Parsed_Date'] = pd.NaT
+            if periode_col:
+                df_raw[periode_col] = pd.to_numeric(df_raw[periode_col], errors='coerce').fillna(0).astype(int)
 
             if 'Kabupaten' not in df_raw.columns: df_raw['Kabupaten'] = '-'
             else: df_raw['Kabupaten'] = df_raw['Kabupaten'].fillna('-').astype(str).str.strip()
@@ -144,24 +142,26 @@ if uploaded_lbp is not None:
         # --- SIDEBAR FILTER PERIODE & SALESMAN ---
         with st.sidebar:
             st.markdown("---")
-            st.markdown("### 📅 **Filter Periode Transaksi**")
+            st.markdown("### 📅 **Filter Periode LBP**")
             
-            if date_col and df_raw['Parsed_Date'].notna().any():
-                min_dt = df_raw['Parsed_Date'].min().date()
-                max_dt = df_raw['Parsed_Date'].max().date()
+            if periode_col:
+                available_periods = sorted(df_raw[periode_col][df_raw[periode_col] > 0].unique().tolist())
+                if not available_periods:
+                    available_periods = list(range(1, 13))
                 
-                start_date = st.date_input("Dari Tanggal:", value=min_dt, min_value=min_dt, max_value=max_dt)
-                end_date = st.date_input("Sampai Tanggal:", value=max_dt, min_value=min_dt, max_value=max_dt)
-                
-                # Filter berdasarkan tanggal
-                df_filtered_date = df_raw[(df_raw['Parsed_Date'].dt.date >= start_date) & (df_raw['Parsed_Date'].dt.date <= end_date)].copy()
+                selected_periods = st.multiselect(
+                    "Pilih Periode (1 - 12):",
+                    options=available_periods,
+                    default=available_periods
+                )
+                df_filtered = df_raw[df_raw[periode_col].isin(selected_periods)].copy()
             else:
-                st.info("Kolom tanggal transaksi tidak terdeteksi otomatis. Menampilkan seluruh data.")
-                df_filtered_date = df_raw.copy()
+                st.info("Kolom 'Periode' tidak ditemukan di file LBP.")
+                df_filtered = df_raw.copy()
 
             st.markdown("---")
             st.markdown("### 👥 **Pilih Salesman (Tim SS)**")
-            all_salesmen = sorted(df_filtered_date['Salesman'].dropna().unique().tolist())
+            all_salesmen = sorted(df_filtered['Salesman'].dropna().unique().tolist())
             select_all = st.checkbox("Pilih Semua Salesman (Total Area)", value=True)
             
             if select_all:
@@ -173,7 +173,7 @@ if uploaded_lbp is not None:
             st.warning("Silakan pilih minimal 1 salesman pada menu di sebelah kiri.")
             st.stop()
 
-        df = df_filtered_date[df_filtered_date['Salesman'].isin(selected_salesmen)].copy()
+        df = df_filtered[df_filtered['Salesman'].isin(selected_salesmen)].copy()
 
         base_cols = ['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Kabupaten', 'Kecamatan', 'Kode Pasar']
         cols_exist = [c for c in base_cols if c in df.columns]

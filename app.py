@@ -294,7 +294,7 @@ if uploaded_lbp is not None:
                 st.markdown(f"<div class='metric-subtext'>Bruto: Rp {total_bruto:,.0f}</div>", unsafe_allow_html=True)
         with c2:
             with st.container(border=True):
-                st.metric("Outlet Aktif (OA) & EC", f"{total_oa:,} OA", delta=f"{total_ec:,} EC (Visits)", delta_color="normal")
+                st.metric("Outlet Aktif (OA) & EC", f"{total_oa:,} OA", delta=f"{total_ec:,} EC (Efective Call)", delta_color="normal")
                 st.markdown(f"<div class='metric-subtext'>Total Toko Aktif & Total Kunjungan Efektif</div>", unsafe_allow_html=True)
         with c3:
             with st.container(border=True):

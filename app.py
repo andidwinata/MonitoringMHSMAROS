@@ -375,7 +375,7 @@ if uploaded_lbp is not None:
             sales_perf['Avg_SKU'] = sales_perf['Avg_SKU'].round(1)
 
             display_sales = sales_perf.copy()
-            display_sales['Net Sales (Rp)'] = display_sales['Net_Sales'].apply(lambda x: f"Rp {x:,.0f}")
+            display_sales['Net_Sales (Rp)'] = display_sales['Net_Sales'].apply(lambda x: f"Rp {x:,.0f}")
             display_sales['Drop Size / EC'] = display_sales['Drop Size / EC'].apply(lambda x: f"Rp {x:,.0f}")
             display_sales['% Strike Rate MHS'] = display_sales['% Strike Rate MHS'].apply(lambda x: f"{x:.1f}%")
 

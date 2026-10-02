@@ -42,28 +42,30 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Master Target SKU per Channel yang Disesuaikan dengan Data LBP & Tabel Referensi
+# Master Target SKU per Channel (Termasuk GMM = Minimarket / Supermarket)
 def get_target_sku_by_channel(channel_str):
     ch_upper = str(channel_str).upper()
     
-    # Wet Retail / Kantin / Warduh -> Target 5 SKU
+    # Kantin / Warduh / Wet Retail -> 5 SKU
     if 'WET' in ch_upper or 'KANTIN' in ch_upper or 'WARDUH' in ch_upper or '154' in ch_upper:
         return 5
-    # Kios / Retail Small -> Target 7 SKU
+    # Kios / Retail Small -> 7 SKU
     elif 'KIOS' in ch_upper or 'RETAIL SMALL' in ch_upper or '111' in ch_upper:
         return 7
-    # Retail Large / Grosir Snack -> Target 10 SKU
+    # Retail Large / Grosir Snack -> 10 SKU
     elif 'RETAIL LARGE' in ch_upper or 'GROSIR SNACK' in ch_upper or '113' in ch_upper:
         return 10
-    # Grosir Kelontong / Semi Grosir / Grosir Modern -> Target 15 SKU
-    elif 'GROSIR' in ch_upper or 'SEMI' in ch_upper or '114' in ch_upper or '115' in ch_upper:
+    # Grosir Kelontong / Semi Grosir / Grosir Modern -> 15 SKU
+    elif 'GROSIR KELONTONG' in ch_upper or 'SEMI GROSIR' in ch_upper or 'GROSIR' in ch_upper or '114' in ch_upper or '115' in ch_upper:
         return 15
-    # Minimarket -> Target 20 SKU
-    elif 'MINIMARKET' in ch_upper:
+    # GMM / Minimarket -> 20 SKU
+    elif 'MINIMARKET' in ch_upper or ('GMM' in ch_upper and 'MINI' in ch_upper):
         return 20
-    # Supermarket -> Target 25 SKU
-    elif 'SUPERMARKET' in ch_upper or '110' in ch_upper:
+    # Supermarket / GMM Supermarket -> 25 SKU
+    elif 'SUPERMARKET' in ch_upper or ('GMM' in ch_upper and 'SUPER' in ch_upper) or '110' in ch_upper:
         return 25
+    elif 'GMM' in ch_upper:
+        return 20 # Default GMM jika tidak spesifik mini/super
     else:
         return 7 # Default aman
 
@@ -213,13 +215,14 @@ if uploaded_lbp is not None:
         calc_toko = pd.merge(outlet_master, sku_count_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
-        # Menerapkan Target SKU Baru Sesuai Channel
+        # Terapkan Target SKU per Channel
         calc_toko['Target SKU'] = calc_toko['Channel'].apply(get_target_sku_by_channel)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
 
         total_oa = len(calc_toko) # Outlet Aktif (OA) unik dalam periode
         
+        # Hitung EC presisi (tanggal berbeda = EC baru, tanggal sama = 1 EC per toko)
         if date_col and df['Parsed_Date'].notna().any():
             total_ec = df[['No Outlet', 'Parsed_Date']].drop_duplicates().shape[0]
         elif 'Faktur' in df.columns:

@@ -461,16 +461,20 @@ if uploaded_lbp is not None:
                     fig_div.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10))
                     st.plotly_chart(fig_div, use_container_width=True)
 
-        # TAB 4: CHANNEL & TERRITORY
+        # TAB 4: CHANNEL & TERRITORY (DITAMBAHKAN KOLOM TARGET SKU)
         with tab4:
             st.subheader("Performa Channel (Tipe Toko)")
             channel_val = df.groupby('Channel')['NET_AMOUNT'].sum().reset_index()
             channel_rep = calc_toko.groupby('Channel').agg(Total_EC=('No Outlet', 'count'), Toko_Lolos=('Status Lolos', 'sum')).reset_index()
             channel_merge = pd.merge(channel_val, channel_rep, on='Channel').sort_values(by='Total_EC', ascending=False)
+            
+            # Tambahkan kolom Target SKU per Channel
+            channel_merge['Target SKU'] = channel_merge['Channel'].apply(get_target_sku_by_channel)
+            
             channel_merge['% Lolos Channel'] = ((channel_merge['Toko_Lolos'] / channel_merge['Total_EC']) * 100).round(1)
             channel_merge['Omset (Rp)'] = channel_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
             
-            tbl_channel = beri_nomor_urut(channel_merge[['Channel', 'Total_EC', 'Toko_Lolos', '% Lolos Channel', 'Omset (Rp)']])
+            tbl_channel = beri_nomor_urut(channel_merge[['Channel', 'Target SKU', 'Total_EC', 'Toko_Lolos', '% Lolos Channel', 'Omset (Rp)']])
             st.dataframe(tbl_channel, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Excel Channel", data=convert_df_to_excel({'CHANNEL': tbl_channel}), file_name="Performa_Channel.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -478,9 +482,9 @@ if uploaded_lbp is not None:
             fig_ch.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
             st.plotly_chart(fig_ch, use_container_width=True)
 
-        # TAB 5: ACTION PLAN GAP MHS (DENGAN LIST SKU YANG SUDAH & BELUM MASUK)
+        # TAB 5: ACTION PLAN GAP MHS
         with tab5:
-            st.subheader("🎯 Action Plan: Toko Belum Lolos & Detail SKU Masuk/Belum Masuk")
+            st.subheader("🎯 Action Plan: Toko Belum Lolos & Detail SKU Masuk")
             sls_options = ['SEMUA TIM SS'] + selected_salesmen
             pilih_sales = st.selectbox("Filter Berdasarkan Salesman:", sls_options)
 
@@ -495,8 +499,8 @@ if uploaded_lbp is not None:
             st.download_button("📥 Download Excel Gap Toko", data=convert_df_to_excel({'GAP_TOKO': tbl_gap}), file_name="Gap_Toko_Action_Plan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             st.markdown("---")
-            st.markdown("### 🔍 **Pemeriksaan Detail & Referensi SKU Toko**")
-            st.caption("Pilih salah satu toko di bawah untuk melihat rincian SKU yang SUDAH masuk dan referensi SKU yang BELUM masuk:")
+            st.markdown("### 🔍 **Pemeriksaan Detail SKU Toko**")
+            st.caption("Pilih salah satu toko di bawah untuk melihat rincian SKU yang SUDAH masuk:")
 
             if len(gap_outlets) > 0:
                 gap_outlets['Pilihan_Label'] = gap_outlets['No Outlet'].astype(str) + " - " + gap_outlets['Nama Outlet'] + " (Kurang " + gap_outlets['Gap SKU'].astype(str) + " SKU | " + gap_outlets['Salesman'] + ")"
@@ -518,14 +522,10 @@ if uploaded_lbp is not None:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # SKU yang sudah masuk di toko ini (net qty > 0)
-                df_outlet_tx = df[(df['No Outlet'] == selected_no_outlet) & (df['NET_QTY'] > 0)]
-                sku_toko_masuk = df_outlet_tx[['Pcode_Str', 'Nama Produk', 'NET_QTY']].drop_duplicates(subset=['Pcode_Str'])
+                sku_toko_masuk = df[(df['No Outlet'] == selected_no_outlet) & (df['NET_QTY'] > 0)][['Pcode_Str', 'Nama Produk', 'NET_QTY']].drop_duplicates(subset=['Pcode_Str'])
                 sku_toko_masuk = sku_toko_masuk.rename(columns={'Pcode_Str': 'Pcode', 'NET_QTY': 'Total Qty Terbeli'})
 
-                # Master seluruh SKU unik dalam data terfilter
                 all_master_sku = df[['Pcode_Str', 'Nama Produk']].drop_duplicates(subset=['Pcode_Str']).rename(columns={'Pcode_Str': 'Pcode'})
-                
                 pcodes_masuk = set(sku_toko_masuk['Pcode'])
                 sku_toko_belum = all_master_sku[~all_master_sku['Pcode'].isin(pcodes_masuk)]
 
@@ -533,16 +533,14 @@ if uploaded_lbp is not None:
                 with col_sudah:
                     st.markdown(f"#### ✅ SKU yang SUDAH Masuk ({len(sku_toko_masuk)} Varian)")
                     if len(sku_toko_masuk) > 0:
-                        tbl_toko_masuk = beri_nomor_urut(sku_toko_masuk[['Pcode', 'Nama Produk', 'Total Qty Terbeli']])
-                        st.dataframe(tbl_toko_masuk, use_container_width=True, hide_index=True)
+                        st.dataframe(beri_nomor_urut(sku_toko_masuk[['Pcode', 'Nama Produk', 'Total Qty Terbeli']]), use_container_width=True, hide_index=True)
                     else:
                         st.info("Belum ada SKU yang terbeli di toko ini.")
 
                 with col_belum:
                     st.markdown(f"#### ❌ Referensi SKU yang BELUM Masuk ({len(sku_toko_belum)} Varian)")
                     if len(sku_toko_belum) > 0:
-                        tbl_toko_belum = beri_nomor_urut(sku_toko_belum[['Pcode', 'Nama Produk']])
-                        st.dataframe(tbl_toko_belum, use_container_width=True, hide_index=True)
+                        st.dataframe(beri_nomor_urut(sku_toko_belum[['Pcode', 'Nama Produk']]), use_container_width=True, hide_index=True)
                     else:
                         st.info("Semua SKU master sudah masuk di toko ini.")
 

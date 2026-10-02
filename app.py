@@ -122,6 +122,7 @@ if uploaded_lbp is not None:
 
             df_raw['Salesman'] = df_raw['Salesman'].astype(str).str.strip()
             df_raw['Pcode_Str'] = df_raw['Pcode'].astype(str).str.strip()
+            df_raw['Nama Produk'] = df_raw['Nama Produk'].astype(str).str.strip()
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
             df_raw['AMOUNT'] = pd.to_numeric(df_raw['AMOUNT'], errors='coerce').fillna(0)
 
@@ -208,14 +209,12 @@ if uploaded_lbp is not None:
         calc_toko = pd.merge(outlet_master, sku_count_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
-        # Terapkan Master Target SKU berdasarkan Channel baru
         calc_toko['Target SKU'] = calc_toko['Channel'].apply(get_target_sku_by_channel)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
 
         total_oa = len(calc_toko) # Outlet Aktif (OA) unik dalam periode
         
-        # Perhitungan EC: Kombinasi No Outlet + Tanggal Transaksi atau Faktur
         if date_col and df['Parsed_Date'].notna().any():
             total_ec = df[['No Outlet', 'Parsed_Date']].drop_duplicates().shape[0]
         elif 'Faktur' in df.columns:
@@ -479,9 +478,9 @@ if uploaded_lbp is not None:
             fig_ch.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
             st.plotly_chart(fig_ch, use_container_width=True)
 
-        # TAB 5: ACTION PLAN GAP MHS
+        # TAB 5: ACTION PLAN GAP MHS (DENGAN LIST SKU YANG SUDAH & BELUM MASUK)
         with tab5:
-            st.subheader("🎯 Action Plan: Toko Belum Lolos & Detail SKU Masuk")
+            st.subheader("🎯 Action Plan: Toko Belum Lolos & Detail SKU Masuk/Belum Masuk")
             sls_options = ['SEMUA TIM SS'] + selected_salesmen
             pilih_sales = st.selectbox("Filter Berdasarkan Salesman:", sls_options)
 
@@ -496,8 +495,8 @@ if uploaded_lbp is not None:
             st.download_button("📥 Download Excel Gap Toko", data=convert_df_to_excel({'GAP_TOKO': tbl_gap}), file_name="Gap_Toko_Action_Plan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             st.markdown("---")
-            st.markdown("### 🔍 **Pemeriksaan Detail SKU Toko**")
-            st.caption("Pilih salah satu toko di bawah untuk melihat rincian SKU yang SUDAH masuk:")
+            st.markdown("### 🔍 **Pemeriksaan Detail & Referensi SKU Toko**")
+            st.caption("Pilih salah satu toko di bawah untuk melihat rincian SKU yang SUDAH masuk dan referensi SKU yang BELUM masuk:")
 
             if len(gap_outlets) > 0:
                 gap_outlets['Pilihan_Label'] = gap_outlets['No Outlet'].astype(str) + " - " + gap_outlets['Nama Outlet'] + " (Kurang " + gap_outlets['Gap SKU'].astype(str) + " SKU | " + gap_outlets['Salesman'] + ")"
@@ -519,17 +518,40 @@ if uploaded_lbp is not None:
                 </div>
                 """, unsafe_allow_html=True)
 
+                # SKU yang sudah masuk di toko ini (net qty > 0)
                 df_outlet_tx = df[(df['No Outlet'] == selected_no_outlet) & (df['NET_QTY'] > 0)]
                 sku_toko_masuk = df_outlet_tx[['Pcode_Str', 'Nama Produk', 'NET_QTY']].drop_duplicates(subset=['Pcode_Str'])
                 sku_toko_masuk = sku_toko_masuk.rename(columns={'Pcode_Str': 'Pcode', 'NET_QTY': 'Total Qty Terbeli'})
 
-                st.markdown(f"#### ✅ Rincian SKU yang SUDAH Masuk ({len(sku_toko_masuk)} SKU Varian)")
-                if len(sku_toko_masuk) > 0:
-                    tbl_toko_masuk = beri_nomor_urut(sku_toko_masuk[['Pcode', 'Nama Produk', 'Total Qty Terbeli']])
-                    st.dataframe(tbl_toko_masuk, use_container_width=True, hide_index=True)
-                    st.download_button("📥 Download Excel Detail Toko", data=convert_df_to_excel({'DETAIL_TOKO': tbl_toko_masuk}), file_name=f"Detail_SKU_{selected_no_outlet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                else:
-                    st.info("Belum ada SKU yang terbeli di toko ini.")
+                # Master seluruh SKU unik dalam data terfilter
+                all_master_sku = df[['Pcode_Str', 'Nama Produk']].drop_duplicates(subset=['Pcode_Str']).rename(columns={'Pcode_Str': 'Pcode'})
+                
+                pcodes_masuk = set(sku_toko_masuk['Pcode'])
+                sku_toko_belum = all_master_sku[~all_master_sku['Pcode'].isin(pcodes_masuk)]
+
+                col_sudah, col_belum = st.columns(2)
+                with col_sudah:
+                    st.markdown(f"#### ✅ SKU yang SUDAH Masuk ({len(sku_toko_masuk)} Varian)")
+                    if len(sku_toko_masuk) > 0:
+                        tbl_toko_masuk = beri_nomor_urut(sku_toko_masuk[['Pcode', 'Nama Produk', 'Total Qty Terbeli']])
+                        st.dataframe(tbl_toko_masuk, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Belum ada SKU yang terbeli di toko ini.")
+
+                with col_belum:
+                    st.markdown(f"#### ❌ Referensi SKU yang BELUM Masuk ({len(sku_toko_belum)} Varian)")
+                    if len(sku_toko_belum) > 0:
+                        tbl_toko_belum = beri_nomor_urut(sku_toko_belum[['Pcode', 'Nama Produk']])
+                        st.dataframe(tbl_toko_belum, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Semua SKU master sudah masuk di toko ini.")
+
+                buf_toko_sku = io.BytesIO()
+                with pd.ExcelWriter(buf_toko_sku, engine='openpyxl') as writer:
+                    sku_toko_masuk.to_excel(writer, sheet_name='SUDAH_MASUK', index=False)
+                    sku_toko_belum.to_excel(writer, sheet_name='BELUM_MASUK', index=False)
+
+                st.download_button("📥 Download Excel Detail & Referensi SKU Toko", data=buf_toko_sku.getvalue(), file_name=f"Detail_SKU_{selected_no_outlet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             else:
                 st.success("🎉 Seluruh toko yang tercover sudah lolos target SKU!")
 

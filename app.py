@@ -42,15 +42,26 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Master Target SKU per Channel
+# Master Target SKU per Channel Terbaru (Berdasarkan Tabel Referensi)
 DEFAULT_TARGET_CHANNEL = {
-    '111': 7,   # Kios / Retail Small
-    '154': 7,   # Wet Retail
-    '113': 10,  # Retail Large
-    '114': 15,  # Semi Grosir
-    '115': 15,  # Grosir Kelontong
-    '110': 25   # Grosir Modern / Supermarket
+    'Kantin': 5,
+    'Warduh': 5,
+    'Kios': 7,
+    'Retail Large': 10,
+    'Grosir Snack': 10,
+    'Grosir Kelontong': 15,
+    'Grosir Modern': 15,
+    'Minimarket': 20,
+    'Supermarket': 25
 }
+
+# Fungsi Memetakan Target Berdasarkan Nama/Prefix Channel di Data LBP
+def get_target_sku_by_channel(channel_str):
+    ch_upper = str(channel_str).upper()
+    for key, val in DEFAULT_TARGET_CHANNEL.items():
+        if key.upper() in ch_upper:
+            return val
+    return 7 # Default jika tidak ditemukan
 
 # Fungsi Penomoran Mulai dari 1
 def beri_nomor_urut(df_target):
@@ -114,7 +125,18 @@ if uploaded_lbp is not None:
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
             df_raw['AMOUNT'] = pd.to_numeric(df_raw['AMOUNT'], errors='coerce').fillna(0)
 
-            # Deteksi Kolom Periode secara otomatis
+            # Deteksi Kolom Tanggal & Periode secara otomatis
+            date_col = None
+            for col in ['Tanggal', 'Tgl', 'Date', 'TRANS_DATE', 'TANGGAL']:
+                if col in df_raw.columns:
+                    date_col = col
+                    break
+
+            if date_col:
+                df_raw['Parsed_Date'] = pd.to_datetime(df_raw[date_col], errors='coerce').dt.date
+            else:
+                df_raw['Parsed_Date'] = pd.NaT
+
             periode_col = None
             for col in ['Periode', 'PERIODE', 'Period', 'PERIOD']:
                 if col in df_raw.columns:
@@ -178,7 +200,6 @@ if uploaded_lbp is not None:
         base_cols = ['No Outlet', 'Nama Outlet', 'Kode Sales', 'Salesman', 'Channel', 'Kabupaten', 'Kecamatan', 'Kode Pasar']
         cols_exist = [c for c in base_cols if c in df.columns]
         outlet_master = df[cols_exist].drop_duplicates(subset=['No Outlet']).copy()
-        outlet_master['Channel_Prefix'] = outlet_master['Channel'].astype(str).str.slice(0, 3)
 
         outlet_sku_agg = df.groupby(['No Outlet', 'Pcode_Str'])['NET_QTY'].sum().reset_index()
         outlet_sku_positive = outlet_sku_agg[outlet_sku_agg['NET_QTY'] > 0]
@@ -187,11 +208,21 @@ if uploaded_lbp is not None:
         calc_toko = pd.merge(outlet_master, sku_count_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
-        calc_toko['Target SKU'] = calc_toko['Channel_Prefix'].map(DEFAULT_TARGET_CHANNEL).fillna(7).astype(int)
+        # Terapkan Master Target SKU berdasarkan Channel baru
+        calc_toko['Target SKU'] = calc_toko['Channel'].apply(get_target_sku_by_channel)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
 
-        total_ec = len(calc_toko)
+        total_oa = len(calc_toko) # Outlet Aktif (OA) unik dalam periode
+        
+        # Perhitungan EC: Kombinasi No Outlet + Tanggal Transaksi atau Faktur
+        if date_col and df['Parsed_Date'].notna().any():
+            total_ec = df[['No Outlet', 'Parsed_Date']].drop_duplicates().shape[0]
+        elif 'Faktur' in df.columns:
+            total_ec = df['Faktur'].nunique()
+        else:
+            total_ec = len(df)
+
         total_lolos_mhs = calc_toko['Status Lolos'].sum()
         ach_cb_standpro = (total_lolos_mhs / cb_standpro) * 100
         
@@ -254,8 +285,8 @@ if uploaded_lbp is not None:
                 st.markdown(f"<div class='metric-subtext'>Bruto: Rp {total_bruto:,.0f}</div>", unsafe_allow_html=True)
         with c2:
             with st.container(border=True):
-                st.metric("Toko Transaksi (EC)", f"{total_ec:,} Toko", delta=f"+{df['Faktur'].nunique():,} Faktur", delta_color="normal")
-                st.markdown(f"<div class='metric-subtext'>Total Faktur Terbit</div>", unsafe_allow_html=True)
+                st.metric("Outlet Aktif (OA) & EC", f"{total_oa:,} OA", delta=f"{total_ec:,} EC (Effective Calls)", delta_color="normal")
+                st.markdown(f"<div class='metric-subtext'>Total Toko Aktif & Total Kunjungan Efektif</div>", unsafe_allow_html=True)
         with c3:
             with st.container(border=True):
                 st.metric("Toko Lolos MHS", f"{total_lolos_mhs:,} Toko", delta=delta_mhs, delta_color=delta_color_mhs)
@@ -305,25 +336,40 @@ if uploaded_lbp is not None:
                     Lolos=('Status Lolos', 'sum')
                 ).reset_index()
                 fig_bar = go.Figure()
-                fig_bar.add_trace(go.Bar(name='Toko Tercover (EC)', x=chart_df['Salesman'], y=chart_df['Covered'], marker_color='#94a3b8'))
+                fig_bar.add_trace(go.Bar(name='Outlet Aktif (OA)', x=chart_df['Salesman'], y=chart_df['Covered'], marker_color='#94a3b8'))
                 fig_bar.add_trace(go.Bar(name='Toko Lolos MHS', x=chart_df['Salesman'], y=chart_df['Lolos'], marker_color='#0284c7'))
                 fig_bar.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10), barmode='group', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig_bar, use_container_width=True)
 
-            st.markdown("#### Tabel Rincian Kinerja Salesman")
-            sales_val = df.groupby(['Kode Sales', 'Salesman']).agg(Net_Sales=('NET_AMOUNT', 'sum'), Total_Faktur=('Faktur', 'nunique')).reset_index()
-            sales_agg = calc_toko.groupby(['Kode Sales', 'Salesman']).agg(EC=('No Outlet', 'count'), Toko_Lolos_MHS=('Status Lolos', 'sum'), Avg_SKU=('Realisasi SKU Sold', 'mean')).reset_index()
+            st.markdown("#### Tabel Rincian Kinerja Salesman (OA vs EC)")
+            
+            if date_col and df['Parsed_Date'].notna().any():
+                sales_ec = df.groupby(['Kode Sales', 'Salesman'])['Parsed_Date'].apply(lambda x: df.loc[x.index, ['No Outlet', 'Parsed_Date']].drop_duplicates().shape[0]).reset_index(name='EC')
+            elif 'Faktur' in df.columns:
+                sales_ec = df.groupby(['Kode Sales', 'Salesman'])['Faktur'].nunique().reset_index(name='EC')
+            else:
+                sales_ec = df.groupby(['Kode Sales', 'Salesman']).size().reset_index(name='EC')
+
+            sales_val = df.groupby(['Kode Sales', 'Salesman']).agg(Net_Sales=('NET_AMOUNT', 'sum')).reset_index()
+            sales_val = pd.merge(sales_val, sales_ec, on=['Kode Sales', 'Salesman'])
+
+            sales_agg = calc_toko.groupby(['Kode Sales', 'Salesman']).agg(
+                OA=('No Outlet', 'count'), 
+                Toko_Lolos_MHS=('Status Lolos', 'sum'), 
+                Avg_SKU=('Realisasi SKU Sold', 'mean')
+            ).reset_index()
+            
             sales_perf = pd.merge(sales_val, sales_agg, on=['Kode Sales', 'Salesman'])
-            sales_perf['% Strike Rate MHS'] = ((sales_perf['Toko_Lolos_MHS'] / sales_perf['EC']) * 100).round(1)
-            sales_perf['Drop Size / Faktur'] = (sales_perf['Net_Sales'] / sales_perf['Total_Faktur']).round(0)
+            sales_perf['% Strike Rate MHS'] = ((sales_perf['Toko_Lolos_MHS'] / sales_perf['OA']) * 100).round(1)
+            sales_perf['Drop Size / EC'] = (sales_perf['Net_Sales'] / sales_perf['EC']).round(0)
             sales_perf['Avg_SKU'] = sales_perf['Avg_SKU'].round(1)
 
             display_sales = sales_perf.copy()
             display_sales['Net_Sales (Rp)'] = display_sales['Net_Sales'].apply(lambda x: f"Rp {x:,.0f}")
-            display_sales['Drop Size / Faktur'] = display_sales['Drop Size / Faktur'].apply(lambda x: f"Rp {x:,.0f}")
+            display_sales['Drop Size / EC'] = display_sales['Drop Size / EC'].apply(lambda x: f"Rp {x:,.0f}")
             display_sales['% Strike Rate MHS'] = display_sales['% Strike Rate MHS'].apply(lambda x: f"{x:.1f}%")
 
-            tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / Faktur']])
+            tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'OA', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / EC']])
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Tabel Salesman (.xlsx)", data=convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales}), file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 

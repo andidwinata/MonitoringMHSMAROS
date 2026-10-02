@@ -42,7 +42,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Master Target SKU per Channel Resmi Sesuai Tabel
+# Master Target SKU per Channel Persis Sesuai Tabel Gambar
 DEFAULT_TARGET_CHANNEL = {
     'KANTIN': 5,
     'WARDUH': 5,
@@ -55,13 +55,13 @@ DEFAULT_TARGET_CHANNEL = {
     'SUPERMARKET': 25
 }
 
-# Fungsi Memetakan Target Berdasarkan Nama Channel di Data LBP
+# Fungsi Pencocokan Target SKU berdasarkan Nama Channel
 def get_target_sku_by_channel(channel_str):
     ch_upper = str(channel_str).upper()
     for key, val in DEFAULT_TARGET_CHANNEL.items():
         if key in ch_upper:
             return val
-    return 7 # Default aman jika tidak ada yang cocok
+    return 7 # Default aman jika teks channel tidak dikenali
 
 # Fungsi Penomoran Mulai dari 1
 def beri_nomor_urut(df_target):
@@ -209,7 +209,7 @@ if uploaded_lbp is not None:
         calc_toko = pd.merge(outlet_master, sku_count_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
-        # Menerapkan target SKU berdasarkan master baru
+        # Menerapkan Target SKU Baru Sesuai Tabel Master
         calc_toko['Target SKU'] = calc_toko['Channel'].apply(get_target_sku_by_channel)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))

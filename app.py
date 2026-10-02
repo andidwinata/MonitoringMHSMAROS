@@ -42,26 +42,26 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Master Target SKU per Channel Terbaru (Berdasarkan Tabel Referensi)
+# Master Target SKU per Channel Resmi Sesuai Tabel
 DEFAULT_TARGET_CHANNEL = {
-    'Kantin': 5,
-    'Warduh': 5,
-    'Kios': 7,
-    'Retail Large': 10,
-    'Grosir Snack': 10,
-    'Grosir Kelontong': 15,
-    'Grosir Modern': 15,
-    'Minimarket': 20,
-    'Supermarket': 25
+    'KANTIN': 5,
+    'WARDUH': 5,
+    'KIOS': 7,
+    'RETAIL LARGE': 10,
+    'GROSIR SNACK': 10,
+    'GROSIR KELONTONG': 15,
+    'GROSIR MODERN': 15,
+    'MINIMARKET': 20,
+    'SUPERMARKET': 25
 }
 
-# Fungsi Memetakan Target Berdasarkan Nama/Prefix Channel di Data LBP
+# Fungsi Memetakan Target Berdasarkan Nama Channel di Data LBP
 def get_target_sku_by_channel(channel_str):
     ch_upper = str(channel_str).upper()
     for key, val in DEFAULT_TARGET_CHANNEL.items():
-        if key.upper() in ch_upper:
+        if key in ch_upper:
             return val
-    return 7 # Default jika tidak ditemukan
+    return 7 # Default aman jika tidak ada yang cocok
 
 # Fungsi Penomoran Mulai dari 1
 def beri_nomor_urut(df_target):
@@ -209,6 +209,7 @@ if uploaded_lbp is not None:
         calc_toko = pd.merge(outlet_master, sku_count_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
+        # Menerapkan target SKU berdasarkan master baru
         calc_toko['Target SKU'] = calc_toko['Channel'].apply(get_target_sku_by_channel)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
@@ -461,16 +462,14 @@ if uploaded_lbp is not None:
                     fig_div.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10))
                     st.plotly_chart(fig_div, use_container_width=True)
 
-        # TAB 4: CHANNEL & TERRITORY (DITAMBAHKAN KOLOM TARGET SKU)
+        # TAB 4: CHANNEL & TERRITORY (DENGAN TARGET SKU)
         with tab4:
             st.subheader("Performa Channel (Tipe Toko)")
             channel_val = df.groupby('Channel')['NET_AMOUNT'].sum().reset_index()
             channel_rep = calc_toko.groupby('Channel').agg(Total_EC=('No Outlet', 'count'), Toko_Lolos=('Status Lolos', 'sum')).reset_index()
             channel_merge = pd.merge(channel_val, channel_rep, on='Channel').sort_values(by='Total_EC', ascending=False)
             
-            # Tambahkan kolom Target SKU per Channel
             channel_merge['Target SKU'] = channel_merge['Channel'].apply(get_target_sku_by_channel)
-            
             channel_merge['% Lolos Channel'] = ((channel_merge['Toko_Lolos'] / channel_merge['Total_EC']) * 100).round(1)
             channel_merge['Omset (Rp)'] = channel_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
             
@@ -500,7 +499,7 @@ if uploaded_lbp is not None:
 
             st.markdown("---")
             st.markdown("### 🔍 **Pemeriksaan Detail SKU Toko**")
-            st.caption("Pilih salah satu toko di bawah untuk melihat rincian SKU yang SUDAH masuk:")
+            st.caption("Pilih salah satu toko di bawah untuk melihat rincian SKU yang SUDAH masuk dan BELUM masuk:")
 
             if len(gap_outlets) > 0:
                 gap_outlets['Pilihan_Label'] = gap_outlets['No Outlet'].astype(str) + " - " + gap_outlets['Nama Outlet'] + " (Kurang " + gap_outlets['Gap SKU'].astype(str) + " SKU | " + gap_outlets['Salesman'] + ")"

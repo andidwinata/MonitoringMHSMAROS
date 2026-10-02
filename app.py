@@ -390,7 +390,7 @@ if uploaded_lbp is not None:
             with col_kab:
                 st.markdown("#### Penjualan per Kabupaten")
                 kab_val = df.groupby('Kabupaten')['NET_AMOUNT'].sum().reset_index()
-                kab_out = calc_toko.groupby('Kabupaten').agg(Total Toko=('No Outlet', 'count'), Toko_ olos=('Status Lolos', 'sum')).reset_index()
+                kab_out = calc_toko.groupby('Kabupaten').agg(Total Toko=('No Outlet', 'count'), Toko lolos=('Status Lolos', 'sum')).reset_index()
                 kab_merge = pd.merge(kab_val, kab_out, on='Kabupaten').sort_values(by='NET_AMOUNT', ascending=False)
                 kab_merge['Kontribusi (%)'] = ((kab_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
                 kab_merge['Strike Rate (%)'] = ((kab_merge['Toko_Lolos'] / kab_merge['Total Toko']) * 100).round(1)

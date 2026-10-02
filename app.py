@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS Kustom untuk Tampilan & Spasi Rapih
+# Styling CSS biar tampilan rapi dan tidak kepotong
 st.markdown("""
     <style>
         [data-testid="stMetricValue"] {
@@ -42,40 +42,38 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Master Target SKU per Channel (Termasuk GMM = Minimarket / Supermarket)
+# Aturan target MHS berdasarkan tipe channel toko
 def get_target_sku_by_channel(channel_str):
     ch_upper = str(channel_str).upper()
     
-    # Kantin / Warduh / Wet Retail -> 5 SKU
+    # Wet retail, kantin, warduh
     if 'WET' in ch_upper or 'KANTIN' in ch_upper or 'WARDUH' in ch_upper or '154' in ch_upper:
         return 5
-    # Kios / Retail Small -> 7 SKU
+    # Kios & retail small
     elif 'KIOS' in ch_upper or 'RETAIL SMALL' in ch_upper or '111' in ch_upper:
         return 7
-    # Retail Large / Grosir Snack -> 10 SKU
+    # Retail large & grosir snack
     elif 'RETAIL LARGE' in ch_upper or 'GROSIR SNACK' in ch_upper or '113' in ch_upper:
         return 10
-    # Grosir Kelontong / Semi Grosir / Grosir Modern -> 15 SKU
-    elif 'GROSIR KELONTONG' in ch_upper or 'SEMI GROSIR' in ch_upper or 'GROSIR' in ch_upper or '114' in ch_upper or '115' in ch_upper:
+    # Grosir konvensional / semi grosir luar GMM
+    elif '114' in ch_upper or '115' in ch_upper or ('GROSIR' in ch_upper and 'GMM' not in ch_upper and '110' not in ch_upper):
         return 15
-    # GMM / Minimarket -> 20 SKU
-    elif 'MINIMARKET' in ch_upper or ('GMM' in ch_upper and 'MINI' in ch_upper):
-        return 20
-    # Supermarket / GMM Supermarket -> 25 SKU
-    elif 'SUPERMARKET' in ch_upper or ('GMM' in ch_upper and 'SUPER' in ch_upper) or '110' in ch_upper:
+    # Supermarket murni
+    elif 'SUPERMARKET' in ch_upper:
         return 25
-    elif 'GMM' in ch_upper:
-        return 20 # Default GMM jika tidak spesifik mini/super
+    # Semua jenis GMM (grosir, semi, retail) & kode 110 masuk kategori 20 SKU
+    elif 'GMM' in ch_upper or '110' in ch_upper or 'MINIMARKET' in ch_upper:
+        return 20
     else:
-        return 7 # Default aman
+        return 7
 
-# Fungsi Penomoran Mulai dari 1
+# Bikin nomor urut otomatis mulai dari 1 untuk dataframe
 def beri_nomor_urut(df_target):
     df_res = df_target.copy().reset_index(drop=True)
     df_res.insert(0, 'No', range(1, len(df_res) + 1))
     return df_res
 
-# Fungsi Konversi DataFrame ke Bytes Excel (XLSX)
+# Convert dataframe ke format bytes excel biar bisa didownload
 def convert_df_to_excel(df_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -83,7 +81,7 @@ def convert_df_to_excel(df_dict):
             df_data.to_excel(writer, sheet_name=sheet_name, index=False)
     return output.getvalue()
 
-# Parser LBP
+# Parsing file LBP (support txt, csv, excel)
 def parse_raw_lbp(uploaded_file):
     if uploaded_file.name.endswith(('.txt', '.csv')):
         raw_bytes = uploaded_file.read()
@@ -106,7 +104,7 @@ def parse_raw_lbp(uploaded_file):
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
-# --- SIDEBAR OPERASIONAL ---
+# --- SIDEBAR UTAMA ---
 st.sidebar.title("⚙️ Pengaturan Operasional")
 st.sidebar.markdown("**Akses:** SS / HOA MV42")
 
@@ -115,15 +113,15 @@ cb_standpro = st.sidebar.number_input(
     min_value=1,
     value=1090,
     step=25,
-    help="Target Base Customer (CB) Standpro area untuk menghitung % pencapaian dan tier insentif."
+    help="Target base customer standpro area untuk perhitungan pencapaian tier."
 )
 
 uploaded_lbp = st.sidebar.file_uploader("📂 Upload File LBP (.txt / .csv / .xlsx)", type=['txt', 'csv', 'xlsx'])
 
-# --- PEMROSESAN DATA & DASHBOARD ---
+# --- PROSES UTAMA DATA LBP ---
 if uploaded_lbp is not None:
     try:
-        with st.spinner("Memproses data LBP..."):
+        with st.spinner("Lagi proses data LBP, sabar ya..."):
             df_raw = parse_raw_lbp(uploaded_lbp)
 
             df_raw['Salesman'] = df_raw['Salesman'].astype(str).str.strip()
@@ -132,7 +130,7 @@ if uploaded_lbp is not None:
             df_raw['QTYPCS'] = pd.to_numeric(df_raw['QTYPCS'], errors='coerce').fillna(0)
             df_raw['AMOUNT'] = pd.to_numeric(df_raw['AMOUNT'], errors='coerce').fillna(0)
 
-            # Deteksi Kolom Tanggal & Periode secara otomatis
+            # Cek kolom tanggal transaksi
             date_col = None
             for col in ['Tanggal', 'Tgl', 'Date', 'TRANS_DATE', 'TANGGAL']:
                 if col in df_raw.columns:
@@ -144,6 +142,7 @@ if uploaded_lbp is not None:
             else:
                 df_raw['Parsed_Date'] = pd.NaT
 
+            # Cek kolom periode
             periode_col = None
             for col in ['Periode', 'PERIODE', 'Period', 'PERIOD']:
                 if col in df_raw.columns:
@@ -162,13 +161,14 @@ if uploaded_lbp is not None:
             if 'Kode Pasar' not in df_raw.columns: df_raw['Kode Pasar'] = '-'
             else: df_raw['Kode Pasar'] = df_raw['Kode Pasar'].fillna('-').astype(str).str.strip()
             
+            # Pisahkan transaksi normal dan retur
             is_retur = df_raw['TRANSTYPE'].astype(str).str.strip().str.upper() == 'R'
             df_raw['NET_QTY'] = df_raw['QTYPCS'].where(~is_retur, -df_raw['QTYPCS'])
             df_raw['NET_AMOUNT'] = df_raw['AMOUNT'].where(~is_retur, -df_raw['AMOUNT'])
             df_raw['RETUR_AMOUNT'] = df_raw['AMOUNT'].where(is_retur, 0)
             df_raw['BRUTO_AMOUNT'] = df_raw['AMOUNT'].where(~is_retur, 0)
 
-        # --- SIDEBAR FILTER PERIODE & SALESMAN ---
+        # Filter di sidebar
         with st.sidebar:
             st.markdown("---")
             st.markdown("### 📅 **Filter Periode LBP**")
@@ -185,7 +185,7 @@ if uploaded_lbp is not None:
                 )
                 df_filtered = df_raw[df_raw[periode_col].isin(selected_periods)].copy()
             else:
-                st.info("Kolom 'Periode' tidak ditemukan di file LBP.")
+                st.info("Kolom periode tidak ketemu, pakai semua data.")
                 df_filtered = df_raw.copy()
 
             st.markdown("---")
@@ -199,7 +199,7 @@ if uploaded_lbp is not None:
                 selected_salesmen = st.multiselect("Salesman Terpilih:", options=all_salesmen, default=all_salesmen[:3] if len(all_salesmen) >= 3 else all_salesmen)
 
         if not selected_salesmen:
-            st.warning("Silakan pilih minimal 1 salesman pada menu di sebelah kiri.")
+            st.warning("Pilih minimal 1 salesman dulu di sebelah kiri.")
             st.stop()
 
         df = df_filtered[df_filtered['Salesman'].isin(selected_salesmen)].copy()
@@ -208,6 +208,7 @@ if uploaded_lbp is not None:
         cols_exist = [c for c in base_cols if c in df.columns]
         outlet_master = df[cols_exist].drop_duplicates(subset=['No Outlet']).copy()
 
+        # Hitung realisasi SKU unik per toko
         outlet_sku_agg = df.groupby(['No Outlet', 'Pcode_Str'])['NET_QTY'].sum().reset_index()
         outlet_sku_positive = outlet_sku_agg[outlet_sku_agg['NET_QTY'] > 0]
         sku_count_per_toko = outlet_sku_positive.groupby('No Outlet')['Pcode_Str'].nunique().reset_index(name='Realisasi SKU Sold')
@@ -215,14 +216,14 @@ if uploaded_lbp is not None:
         calc_toko = pd.merge(outlet_master, sku_count_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
-        # Terapkan Target SKU per Channel
+        # Mapping target dan status kelulusan MHS toko
         calc_toko['Target SKU'] = calc_toko['Channel'].apply(get_target_sku_by_channel)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
 
-        total_oa = len(calc_toko) # Outlet Aktif (OA) unik dalam periode
+        total_oa = len(calc_toko) # Toko aktif unik dalam periode
         
-        # Hitung EC presisi (tanggal berbeda = EC baru, tanggal sama = 1 EC per toko)
+        # Hitung EC: Beda tanggal beda kunjungan/faktur dihitung EC baru, tgl sama dihitung 1
         if date_col and df['Parsed_Date'].notna().any():
             total_ec = df[['No Outlet', 'Parsed_Date']].drop_duplicates().shape[0]
         elif 'Faktur' in df.columns:
@@ -238,6 +239,7 @@ if uploaded_lbp is not None:
         total_retur = df['RETUR_AMOUNT'].sum()
         retur_rate = (total_retur / total_bruto * 100) if total_bruto > 0 else 0
 
+        # Penentuan label tier insentif
         if ach_cb_standpro >= 80: 
             tier_label = "Tier 4 (≥ 80%)"
             gauge_color = "#16a34a"
@@ -257,7 +259,7 @@ if uploaded_lbp is not None:
         target_tier1 = int(cb_standpro * 0.5)
         gap_toko_t1 = max(0, target_tier1 - total_lolos_mhs)
 
-        # Header Utama
+        # Header Dashboard
         st.title("📊 Monitoring Operasional & MHS Area (SS / HOA MV42)")
         st.caption(f"Cakupan: **{len(selected_salesmen)} Salesman Terpilih** | Target Standpro: **{cb_standpro:,} Toko**")
 
@@ -284,7 +286,7 @@ if uploaded_lbp is not None:
             delta_status = f"-Kurang {gap_toko_t1:,} Toko"
             delta_color_status = "normal"
 
-        # Kartu Metrik
+        # Kartu Metrik Ringkasan Atas
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             with st.container(border=True):
@@ -292,7 +294,7 @@ if uploaded_lbp is not None:
                 st.markdown(f"<div class='metric-subtext'>Bruto: Rp {total_bruto:,.0f}</div>", unsafe_allow_html=True)
         with c2:
             with st.container(border=True):
-                st.metric("Outlet Aktif (OA) & EC", f"{total_oa:,} OA", delta=f"{total_ec:,} EC (Effective Calls)", delta_color="normal")
+                st.metric("Outlet Aktif (OA) & EC", f"{total_oa:,} OA", delta=f"{total_ec:,} EC (Visits)", delta_color="normal")
                 st.markdown(f"<div class='metric-subtext'>Total Toko Aktif & Total Kunjungan Efektif</div>", unsafe_allow_html=True)
         with c3:
             with st.container(border=True):
@@ -305,6 +307,7 @@ if uploaded_lbp is not None:
 
         st.markdown("---")
 
+        # Tab Menu Analisis
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "📈 Kinerja Salesman", 
             "📍 Omset & Wilayah", 
@@ -313,7 +316,7 @@ if uploaded_lbp is not None:
             "🎯 Action Plan Toko"
         ])
 
-        # TAB 1: KINERJA SALESMAN
+        # --- TAB 1: KINERJA SALESMAN ---
         with tab1:
             st.subheader("Pencapaian Insentif & Kinerja Tim")
             cg, cb = st.columns([1, 2])
@@ -380,7 +383,7 @@ if uploaded_lbp is not None:
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Tabel Salesman (.xlsx)", data=convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales}), file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-        # TAB 2: OMSET & WILAYAH (TERMASUK PASAR)
+        # --- TAB 2: OMSET & WILAYAH ---
         with tab2:
             st.subheader("Analisis Penjualan Berdasarkan Wilayah & Pasar")
             col_kab, col_kec = st.columns(2)
@@ -418,7 +421,7 @@ if uploaded_lbp is not None:
                 fig_kec.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
                 st.plotly_chart(fig_kec, use_container_width=True)
 
-            # OMSET BERDASARKAN PASAR / RAYON
+            # Analisis Omset per Pasar / Rayon
             if 'Kode Pasar' in df.columns and (df['Kode Pasar'] != '-').any():
                 st.markdown("---")
                 st.markdown("#### 🛒 Analisis Omset Berdasarkan Kode Pasar / Rayon")
@@ -436,7 +439,7 @@ if uploaded_lbp is not None:
                 st.dataframe(tbl_pasar, use_container_width=True, hide_index=True)
                 st.download_button("📥 Download Excel Omset per Pasar", data=convert_df_to_excel({'OMSET_PASAR': tbl_pasar}), file_name="Omset_per_Pasar.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-        # TAB 3: SUBBRAND & DIVISI
+        # --- TAB 3: SUBBRAND & DIVISI ---
         with tab3:
             st.subheader("Kontribusi Produk & Divisi")
             col_sb1, col_sb2 = st.columns(2)
@@ -469,7 +472,7 @@ if uploaded_lbp is not None:
                     fig_div.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10))
                     st.plotly_chart(fig_div, use_container_width=True)
 
-        # TAB 4: CHANNEL & TERRITORY (DENGAN TARGET SKU)
+        # --- TAB 4: PERFORMA CHANNEL ---
         with tab4:
             st.subheader("Performa Channel (Tipe Toko)")
             channel_val = df.groupby('Channel')['NET_AMOUNT'].sum().reset_index()
@@ -488,9 +491,9 @@ if uploaded_lbp is not None:
             fig_ch.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
             st.plotly_chart(fig_ch, use_container_width=True)
 
-        # TAB 5: ACTION PLAN GAP MHS
+        # --- TAB 5: ACTION PLAN GAP MHS ---
         with tab5:
-            st.subheader("🎯 Action Plan: Toko Belum Lolos & Detail SKU Masuk")
+            st.subheader("🎯 Action Plan: Toko Belum Lolos & Detail SKU")
             sls_options = ['SEMUA TIM SS'] + selected_salesmen
             pilih_sales = st.selectbox("Filter Berdasarkan Salesman:", sls_options)
 
@@ -506,7 +509,7 @@ if uploaded_lbp is not None:
 
             st.markdown("---")
             st.markdown("### 🔍 **Pemeriksaan Detail SKU Toko**")
-            st.caption("Pilih salah satu toko di bawah untuk melihat rincian SKU yang SUDAH masuk dan BELUM masuk:")
+            st.caption("Pilih salah satu toko di bawah untuk cek SKU yang sudah masuk dan referensi SKU yang belum:")
 
             if len(gap_outlets) > 0:
                 gap_outlets['Pilihan_Label'] = gap_outlets['No Outlet'].astype(str) + " - " + gap_outlets['Nama Outlet'] + " (Kurang " + gap_outlets['Gap SKU'].astype(str) + " SKU | " + gap_outlets['Salesman'] + ")"
@@ -557,7 +560,7 @@ if uploaded_lbp is not None:
 
                 st.download_button("📥 Download Excel Detail & Referensi SKU Toko", data=buf_toko_sku.getvalue(), file_name=f"Detail_SKU_{selected_no_outlet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             else:
-                st.success("🎉 Seluruh toko yang tercover sudah lolos target SKU!")
+                st.success("🎉 Mantap! Seluruh toko yang tercover sudah lolos target SKU!")
 
             st.markdown("---")
 
@@ -578,4 +581,4 @@ if uploaded_lbp is not None:
     except Exception as err:
         st.error(f"Gagal memproses file LBP: {str(err)}")
 else:
-    st.info("👈 Silakan upload file **LBP.txt** pada menu sebelah kiri untuk memproses dashboard monitoring.")
+    st.info("👈 Silakan upload file **LBP.txt** atau file CSV/Excel pada menu di sebelah kiri untuk mulai menggunakan dashboard.")

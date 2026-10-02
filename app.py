@@ -379,7 +379,7 @@ if uploaded_lbp is not None:
             display_sales['Drop Size / EC'] = display_sales['Drop Size / EC'].apply(lambda x: f"Rp {x:,.0f}")
             display_sales['% Strike Rate MHS'] = display_sales['% Strike Rate MHS'].apply(lambda x: f"{x:.1f}%")
 
-            tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net Sales (Rp)', 'OA', 'EC', 'Toko Lolos MHS', '% Strike Rate MHS', 'Avg SKU', 'Avg Drop Size / EC']])
+            tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'OA', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / EC']])
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Tabel Salesman (.xlsx)", data=convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales}), file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 

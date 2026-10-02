@@ -109,7 +109,7 @@ st.sidebar.title("⚙️ Pengaturan Operasional")
 st.sidebar.markdown("**Akses:** SS / HOA MV42")
 
 cb_standpro = st.sidebar.number_input(
-    "Target Standpro (CB Area):",
+    "Total CB Cover (CB Area):",
     min_value=1,
     value=1090,
     step=25,

@@ -42,26 +42,30 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Master Target SKU per Channel Persis Sesuai Tabel Gambar
-DEFAULT_TARGET_CHANNEL = {
-    'KANTIN': 5,
-    'WARDUH': 5,
-    'KIOS': 7,
-    'RETAIL LARGE': 10,
-    'GROSIR SNACK': 10,
-    'GROSIR KELONTONG': 15,
-    'GROSIR MODERN': 15,
-    'MINIMARKET': 20,
-    'SUPERMARKET': 25
-}
-
-# Fungsi Pencocokan Target SKU berdasarkan Nama Channel
+# Master Target SKU per Channel yang Disesuaikan dengan Data LBP & Tabel Referensi
 def get_target_sku_by_channel(channel_str):
     ch_upper = str(channel_str).upper()
-    for key, val in DEFAULT_TARGET_CHANNEL.items():
-        if key in ch_upper:
-            return val
-    return 7 # Default aman jika teks channel tidak dikenali
+    
+    # Wet Retail / Kantin / Warduh -> Target 5 SKU
+    if 'WET' in ch_upper or 'KANTIN' in ch_upper or 'WARDUH' in ch_upper or '154' in ch_upper:
+        return 5
+    # Kios / Retail Small -> Target 7 SKU
+    elif 'KIOS' in ch_upper or 'RETAIL SMALL' in ch_upper or '111' in ch_upper:
+        return 7
+    # Retail Large / Grosir Snack -> Target 10 SKU
+    elif 'RETAIL LARGE' in ch_upper or 'GROSIR SNACK' in ch_upper or '113' in ch_upper:
+        return 10
+    # Grosir Kelontong / Semi Grosir / Grosir Modern -> Target 15 SKU
+    elif 'GROSIR' in ch_upper or 'SEMI' in ch_upper or '114' in ch_upper or '115' in ch_upper:
+        return 15
+    # Minimarket -> Target 20 SKU
+    elif 'MINIMARKET' in ch_upper:
+        return 20
+    # Supermarket -> Target 25 SKU
+    elif 'SUPERMARKET' in ch_upper or '110' in ch_upper:
+        return 25
+    else:
+        return 7 # Default aman
 
 # Fungsi Penomoran Mulai dari 1
 def beri_nomor_urut(df_target):
@@ -209,7 +213,7 @@ if uploaded_lbp is not None:
         calc_toko = pd.merge(outlet_master, sku_count_per_toko, on='No Outlet', how='left').fillna({'Realisasi SKU Sold': 0})
         calc_toko['Realisasi SKU Sold'] = calc_toko['Realisasi SKU Sold'].astype(int)
 
-        # Menerapkan Target SKU Baru Sesuai Tabel Master
+        # Menerapkan Target SKU Baru Sesuai Channel
         calc_toko['Target SKU'] = calc_toko['Channel'].apply(get_target_sku_by_channel)
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))

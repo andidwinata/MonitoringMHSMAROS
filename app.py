@@ -42,38 +42,38 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Aturan target MHS berdasarkan tipe channel toko
+# Aturan target MHS per channel sesuai ketentuan terbaru
 def get_target_sku_by_channel(channel_str):
     ch_upper = str(channel_str).upper()
     
-    # Wet retail, kantin, warduh
+    # Wet retail, kantin, warduh -> 5 SKU
     if 'WET' in ch_upper or 'KANTIN' in ch_upper or 'WARDUH' in ch_upper or '154' in ch_upper:
         return 5
-    # Kios & retail small
+    # Kios & retail small -> 7 SKU
     elif 'KIOS' in ch_upper or 'RETAIL SMALL' in ch_upper or '111' in ch_upper:
         return 7
-    # Retail large & grosir snack
+    # Retail large & grosir snack -> 10 SKU
     elif 'RETAIL LARGE' in ch_upper or 'GROSIR SNACK' in ch_upper or '113' in ch_upper:
         return 10
-    # Grosir konvensional / semi grosir luar GMM
+    # Grosir konvensional / semi grosir non-GMM -> 15 SKU
     elif '114' in ch_upper or '115' in ch_upper or ('GROSIR' in ch_upper and 'GMM' not in ch_upper and '110' not in ch_upper):
         return 15
-    # Supermarket murni
+    # Supermarket murni -> 25 SKU
     elif 'SUPERMARKET' in ch_upper:
         return 25
-    # Semua jenis GMM (grosir, semi, retail) & kode 110 masuk kategori 20 SKU
+    # GMM (semi grosir, retail, grosir, minimarket, kode 110) -> 20 SKU
     elif 'GMM' in ch_upper or '110' in ch_upper or 'MINIMARKET' in ch_upper:
         return 20
     else:
         return 7
 
-# Bikin nomor urut otomatis mulai dari 1 untuk dataframe
+# Fungsi penomoran otomatis mulai dari 1
 def beri_nomor_urut(df_target):
     df_res = df_target.copy().reset_index(drop=True)
     df_res.insert(0, 'No', range(1, len(df_res) + 1))
     return df_res
 
-# Convert dataframe ke format bytes excel biar bisa didownload
+# Konversi dataframe ke bytes excel untuk tombol download
 def convert_df_to_excel(df_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -221,9 +221,9 @@ if uploaded_lbp is not None:
         calc_toko['Status Lolos'] = (calc_toko['Realisasi SKU Sold'] >= calc_toko['Target SKU']).astype(int)
         calc_toko['Gap SKU'] = (calc_toko['Target SKU'] - calc_toko['Realisasi SKU Sold']).apply(lambda x: max(0, x))
 
-        total_oa = len(calc_toko) # Toko aktif unik dalam periode
+        total_oa = len(calc_toko)
         
-        # Hitung EC: Beda tanggal beda kunjungan/faktur dihitung EC baru, tgl sama dihitung 1
+        # Hitung EC: Beda tanggal beda kunjungan dihitung EC baru, tgl sama dihitung 1
         if date_col and df['Parsed_Date'].notna().any():
             total_ec = df[['No Outlet', 'Parsed_Date']].drop_duplicates().shape[0]
         elif 'Faktur' in df.columns:
@@ -351,7 +351,7 @@ if uploaded_lbp is not None:
                 fig_bar.update_layout(height=260, margin=dict(l=10, r=10, t=35, b=10), barmode='group', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig_bar, use_container_width=True)
 
-            st.markdown("#### Tabel Rincian Kinerja Salesman (OA vs EC)")
+            st.markdown("#### Tabel Rincian Kinerja Salesman")
             
             if date_col and df['Parsed_Date'].notna().any():
                 sales_ec = df.groupby(['Kode Sales', 'Salesman'])['Parsed_Date'].apply(lambda x: df.loc[x.index, ['No Outlet', 'Parsed_Date']].drop_duplicates().shape[0]).reset_index(name='EC')
@@ -370,16 +370,30 @@ if uploaded_lbp is not None:
             ).reset_index()
             
             sales_perf = pd.merge(sales_val, sales_agg, on=['Kode Sales', 'Salesman'])
-            sales_perf['% Strike Rate MHS'] = ((sales_perf['Toko_Lolos_MHS'] / sales_perf['OA']) * 100).round(1)
+            sales_perf['Strike Rate MHS'] = ((sales_perf['Toko_Lolos_MHS'] / sales_perf['OA']) * 100).round(1)
             sales_perf['Drop Size / EC'] = (sales_perf['Net_Sales'] / sales_perf['EC']).round(0)
-            sales_perf['Avg_SKU'] = sales_perf['Avg_SKU'].round(1)
+            sales_perf['Avg SKU'] = sales_perf['Avg_SKU'].round(1)
 
             display_sales = sales_perf.copy()
-            display_sales['Net_Sales (Rp)'] = display_sales['Net_Sales'].apply(lambda x: f"Rp {x:,.0f}")
+            display_sales['Net Sales'] = display_sales['Net_Sales'].apply(lambda x: f"Rp {x:,.0f}")
             display_sales['Drop Size / EC'] = display_sales['Drop Size / EC'].apply(lambda x: f"Rp {x:,.0f}")
-            display_sales['% Strike Rate MHS'] = display_sales['% Strike Rate MHS'].apply(lambda x: f"{x:.1f}%")
+            display_sales['Strike Rate MHS'] = display_sales['Strike Rate MHS'].apply(lambda x: f"{x:.1f}%")
 
-            tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net_Sales (Rp)', 'OA', 'EC', 'Toko_Lolos_MHS', '% Strike Rate MHS', 'Avg_SKU', 'Drop Size / EC']])
+            tbl_sales = beri_nomor_urut(display_sales[['Kode Sales', 'Salesman', 'Net Sales', 'OA', 'EC', 'Toko_Lolos_MHS', 'Strike Rate MHS', 'Avg SKU', 'Drop Size / EC']])
+            
+            # Ganti nama kolom tabel supaya bersih dari underscore
+            tbl_sales = tbl_sales.rename(columns={
+                'Kode Sales': 'Kode Sales',
+                'Salesman': 'Salesman',
+                'Net Sales': 'Net Sales',
+                'OA': 'OA',
+                'EC': 'EC',
+                'Toko_Lolos_MHS': 'Toko Lolos MHS',
+                'Strike Rate MHS': 'Strike Rate MHS',
+                'Avg SKU': 'Avg SKU',
+                'Drop Size / EC': 'Drop Size / EC'
+            })
+            
             st.dataframe(tbl_sales, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Tabel Salesman (.xlsx)", data=convert_df_to_excel({'KINERJA_SALESMAN': tbl_sales}), file_name="Kinerja_Salesman.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -392,11 +406,13 @@ if uploaded_lbp is not None:
                 kab_val = df.groupby('Kabupaten')['NET_AMOUNT'].sum().reset_index()
                 kab_out = calc_toko.groupby('Kabupaten').agg(Total_Toko=('No Outlet', 'count'), Toko_Lolos=('Status Lolos', 'sum')).reset_index()
                 kab_merge = pd.merge(kab_val, kab_out, on='Kabupaten').sort_values(by='NET_AMOUNT', ascending=False)
-                kab_merge['Kontribusi (%)'] = ((kab_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
-                kab_merge['Strike Rate (%)'] = ((kab_merge['Toko_Lolos'] / kab_merge['Total_Toko']) * 100).round(1)
-                kab_merge['Omset (Rp)'] = kab_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+                kab_merge['Kontribusi'] = ((kab_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
+                kab_merge['Strike Rate'] = ((kab_merge['Toko_Lolos'] / kab_merge['Total_Toko']) * 100).round(1)
+                kab_merge['Omset'] = kab_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                 
-                tbl_kab = beri_nomor_urut(kab_merge[['Kabupaten', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
+                tbl_kab = beri_nomor_urut(kab_merge[['Kabupaten', 'Omset', 'Kontribusi', 'Total_Toko', 'Toko_Lolos', 'Strike Rate']])
+                tbl_kab = tbl_kab.rename(columns={'Total_Toko': 'Total Toko', 'Toko_Lolos': 'Toko Lolos', 'Kontribusi': 'Kontribusi (%)', 'Strike Rate': 'Strike Rate (%)'})
+                
                 st.dataframe(tbl_kab, use_container_width=True, hide_index=True)
                 st.download_button("📥 Download Excel Kabupaten", data=convert_df_to_excel({'KABUPATEN': tbl_kab}), file_name="Omset_Kabupaten.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -409,11 +425,13 @@ if uploaded_lbp is not None:
                 kec_val = df.groupby('Kecamatan')['NET_AMOUNT'].sum().reset_index()
                 kec_out = calc_toko.groupby('Kecamatan').agg(Total_Toko=('No Outlet', 'count'), Toko_Lolos=('Status Lolos', 'sum')).reset_index()
                 kec_merge = pd.merge(kec_val, kec_out, on='Kecamatan').sort_values(by='NET_AMOUNT', ascending=False).head(10)
-                kec_merge['Kontribusi (%)'] = ((kec_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
-                kec_merge['Strike Rate (%)'] = ((kec_merge['Toko_Lolos'] / kec_merge['Total_Toko']) * 100).round(1)
-                kec_merge['Omset (Rp)'] = kec_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+                kec_merge['Kontribusi'] = ((kec_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
+                kec_merge['Strike Rate'] = ((kec_merge['Toko_Lolos'] / kec_merge['Total_Toko']) * 100).round(1)
+                kec_merge['Omset'] = kec_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
 
-                tbl_kec = beri_nomor_urut(kec_merge[['Kecamatan', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
+                tbl_kec = beri_nomor_urut(kec_merge[['Kecamatan', 'Omset', 'Kontribusi', 'Total_Toko', 'Toko_Lolos', 'Strike Rate']])
+                tbl_kec = tbl_kec.rename(columns={'Total_Toko': 'Total Toko', 'Toko_Lolos': 'Toko Lolos', 'Kontribusi': 'Kontribusi (%)', 'Strike Rate': 'Strike Rate (%)'})
+
                 st.dataframe(tbl_kec, use_container_width=True, hide_index=True)
                 st.download_button("📥 Download Excel Kecamatan", data=convert_df_to_excel({'KECAMATAN': tbl_kec}), file_name="Omset_Kecamatan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -431,11 +449,13 @@ if uploaded_lbp is not None:
                     Toko_Lolos=('Status Lolos', 'sum')
                 ).reset_index()
                 pasar_merge = pd.merge(pasar_val, pasar_out, on='Kode Pasar').sort_values(by='NET_AMOUNT', ascending=False)
-                pasar_merge['Kontribusi (%)'] = ((pasar_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
-                pasar_merge['Strike Rate (%)'] = ((pasar_merge['Toko_Lolos'] / pasar_merge['Total_Toko']) * 100).round(1)
-                pasar_merge['Omset (Rp)'] = pasar_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+                pasar_merge['Kontribusi'] = ((pasar_merge['NET_AMOUNT'] / total_net_sales) * 100).round(1)
+                pasar_merge['Strike Rate'] = ((pasar_merge['Toko_Lolos'] / pasar_merge['Total_Toko']) * 100).round(1)
+                pasar_merge['Omset'] = pasar_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
                 
-                tbl_pasar = beri_nomor_urut(pasar_merge[['Kode Pasar', 'Omset (Rp)', 'Kontribusi (%)', 'Total_Toko', 'Toko_Lolos', 'Strike Rate (%)']])
+                tbl_pasar = beri_nomor_urut(pasar_merge[['Kode Pasar', 'Omset', 'Kontribusi', 'Total_Toko', 'Toko_Lolos', 'Strike Rate']])
+                tbl_pasar = tbl_pasar.rename(columns={'Kode Pasar': 'Kode Pasar', 'Total_Toko': 'Total Toko', 'Toko_Lolos': 'Toko Lolos', 'Kontribusi': 'Kontribusi (%)', 'Strike Rate': 'Strike Rate (%)'})
+
                 st.dataframe(tbl_pasar, use_container_width=True, hide_index=True)
                 st.download_button("📥 Download Excel Omset per Pasar", data=convert_df_to_excel({'OMSET_PASAR': tbl_pasar}), file_name="Omset_per_Pasar.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -447,9 +467,12 @@ if uploaded_lbp is not None:
                 st.markdown("#### Top 10 Subbrand berdasarkan Omset")
                 if 'SUBBRANDNAME' in df.columns:
                     top_sb = df.groupby('SUBBRANDNAME')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False).head(10)
-                    top_sb['Omset (Rp)'] = top_sb['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
-                    top_sb['Kontribusi (%)'] = ((top_sb['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    tbl_sb = beri_nomor_urut(top_sb[['SUBBRANDNAME', 'Omset (Rp)', 'Kontribusi (%)']])
+                    top_sb['Omset'] = top_sb['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+                    top_sb['Kontribusi'] = ((top_sb['NET_AMOUNT'] / total_net_sales) * 100).round(2)
+                    
+                    tbl_sb = beri_nomor_urut(top_sb[['SUBBRANDNAME', 'Omset', 'Kontribusi']])
+                    tbl_sb = tbl_sb.rename(columns={'SUBBRANDNAME': 'Subbrand', 'Kontribusi': 'Kontribusi (%)'})
+
                     st.dataframe(tbl_sb, use_container_width=True, hide_index=True)
                     st.download_button("📥 Download Excel Subbrand", data=convert_df_to_excel({'SUBBRAND': tbl_sb}), file_name="Top_Subbrand.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -462,9 +485,12 @@ if uploaded_lbp is not None:
                 if 'Divisi' in df.columns:
                     div_sales = df.groupby('Divisi')['NET_AMOUNT'].sum().reset_index().sort_values(by='NET_AMOUNT', ascending=False)
                     div_sales['Divisi'] = "Divisi " + div_sales['Divisi'].astype(str)
-                    div_sales['Omset (Rp)'] = div_sales['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
-                    div_sales['Kontribusi (%)'] = ((div_sales['NET_AMOUNT'] / total_net_sales) * 100).round(2)
-                    tbl_div = beri_nomor_urut(div_sales[['Divisi', 'Omset (Rp)', 'Kontribusi (%)']])
+                    div_sales['Omset'] = div_sales['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+                    div_sales['Kontribusi'] = ((div_sales['NET_AMOUNT'] / total_net_sales) * 100).round(2)
+                    
+                    tbl_div = beri_nomor_urut(div_sales[['Divisi', 'Omset', 'Kontribusi']])
+                    tbl_div = tbl_div.rename(columns={'Kontribusi': 'Kontribusi (%)'})
+
                     st.dataframe(tbl_div, use_container_width=True, hide_index=True)
                     st.download_button("📥 Download Excel Divisi", data=convert_df_to_excel({'DIVISI': tbl_div}), file_name="Omset_Divisi.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -480,14 +506,23 @@ if uploaded_lbp is not None:
             channel_merge = pd.merge(channel_val, channel_rep, on='Channel').sort_values(by='Total_EC', ascending=False)
             
             channel_merge['Target SKU'] = channel_merge['Channel'].apply(get_target_sku_by_channel)
-            channel_merge['% Lolos Channel'] = ((channel_merge['Toko_Lolos'] / channel_merge['Total_EC']) * 100).round(1)
-            channel_merge['Omset (Rp)'] = channel_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
+            channel_merge['Strike Rate'] = ((channel_merge['Toko_Lolos'] / channel_merge['Total_EC']) * 100).round(1)
+            channel_merge['Omset'] = channel_merge['NET_AMOUNT'].apply(lambda x: f"Rp {x:,.0f}")
             
-            tbl_channel = beri_nomor_urut(channel_merge[['Channel', 'Target SKU', 'Total_EC', 'Toko_Lolos', '% Lolos Channel', 'Omset (Rp)']])
+            tbl_channel = beri_nomor_urut(channel_merge[['Channel', 'Target SKU', 'Total_EC', 'Toko_Lolos', 'Strike Rate', 'Omset']])
+            tbl_channel = tbl_channel.rename(columns={
+                'Channel': 'Channel',
+                'Target SKU': 'Target SKU',
+                'Total_EC': 'Total Toko',
+                'Toko_Lolos': 'Toko Lolos MHS',
+                'Strike Rate': 'Strike Rate (%)',
+                'Omset': 'Omset'
+            })
+
             st.dataframe(tbl_channel, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Excel Channel", data=convert_df_to_excel({'CHANNEL': tbl_channel}), file_name="Performa_Channel.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-            fig_ch = px.bar(channel_merge, x='Channel', y='Total_EC', color='% Lolos Channel', labels={'Total_EC': 'Jumlah Toko Tercover', '% Lolos Channel': '% Lolos MHS'}, color_continuous_scale='Blues', title="Jumlah Toko Tercover & Kelulusan per Channel")
+            fig_ch = px.bar(channel_merge, x='Channel', y='Total_EC', color='Strike Rate', labels={'Total_EC': 'Jumlah Toko Tercover', 'Strike Rate': 'Strike Rate (%)'}, color_continuous_scale='Blues', title="Jumlah Toko Tercover & Strike Rate per Channel")
             fig_ch.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
             st.plotly_chart(fig_ch, use_container_width=True)
 
@@ -504,6 +539,17 @@ if uploaded_lbp is not None:
             cols_gap = ['No Outlet', 'Nama Outlet', 'Salesman', 'Channel', 'Kabupaten', 'Target SKU', 'Realisasi SKU Sold', 'Gap SKU']
             
             tbl_gap = beri_nomor_urut(gap_outlets[cols_gap])
+            tbl_gap = tbl_gap.rename(columns={
+                'No Outlet': 'No Outlet',
+                'Nama Outlet': 'Nama Outlet',
+                'Salesman': 'Salesman',
+                'Channel': 'Channel',
+                'Kabupaten': 'Kabupaten',
+                'Target SKU': 'Target SKU',
+                'Realisasi SKU Sold': 'Realisasi SKU Sold',
+                'Gap SKU': 'Gap SKU'
+            })
+
             st.dataframe(tbl_gap, use_container_width=True, hide_index=True)
             st.download_button("📥 Download Excel Gap Toko", data=convert_df_to_excel({'GAP_TOKO': tbl_gap}), file_name="Gap_Toko_Action_Plan.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -542,14 +588,18 @@ if uploaded_lbp is not None:
                 with col_sudah:
                     st.markdown(f"#### ✅ SKU yang SUDAH Masuk ({len(sku_toko_masuk)} Varian)")
                     if len(sku_toko_masuk) > 0:
-                        st.dataframe(beri_nomor_urut(sku_toko_masuk[['Pcode', 'Nama Produk', 'Total Qty Terbeli']]), use_container_width=True, hide_index=True)
+                        df_m = beri_nomor_urut(sku_toko_masuk[['Pcode', 'Nama Produk', 'Total Qty Terbeli']])
+                        df_m = df_m.rename(columns={'Pcode': 'Kode Produk', 'Nama Produk': 'Nama Produk', 'Total Qty Terbeli': 'Total Qty Terbeli'})
+                        st.dataframe(df_m, use_container_width=True, hide_index=True)
                     else:
                         st.info("Belum ada SKU yang terbeli di toko ini.")
 
                 with col_belum:
                     st.markdown(f"#### ❌ Referensi SKU yang BELUM Masuk ({len(sku_toko_belum)} Varian)")
                     if len(sku_toko_belum) > 0:
-                        st.dataframe(beri_nomor_urut(sku_toko_belum[['Pcode', 'Nama Produk']]), use_container_width=True, hide_index=True)
+                        df_b = beri_nomor_urut(sku_toko_belum[['Pcode', 'Nama Produk']])
+                        df_b = df_b.rename(columns={'Pcode': 'Kode Produk', 'Nama Produk': 'Nama Produk'})
+                        st.dataframe(df_b, use_container_width=True, hide_index=True)
                     else:
                         st.info("Semua SKU master sudah masuk di toko ini.")
 
